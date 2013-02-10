@@ -1,0 +1,114 @@
+{-# LANGUAGE OverloadedStrings, CPP, DeriveDataTypeable #-}
+{-# OPTIONS_GHC -funbox-strict-fields #-}
+module Rosetta.Fragments where
+
+import Data.Typeable
+import Control.Monad(when)
+import Control.Monad.Instances
+import Data.Either(partitionEithers)
+import qualified Data.ByteString.Char8 as BS
+
+import Rosetta.SS
+
+data FragRes = FragRes { rescode         :: !Char  ,
+                         ss              :: !SSCode,
+                         phi, psi, omega :: !Double
+                       }
+  deriving (Show, Read, Typeable)
+
+data RFrag = RFrag { startPos :: !Int     ,
+                     endPos   :: !Int     ,
+                     res       :: [FragRes]
+                   }
+  deriving (Show, Read, Typeable)
+
+-- | This is temporary, until readMaybe gets into Prelude!
+--   Or replace it with readE that returns a parse error with line no
+--   Using Control.Monad.Error, Monad (ErrorT e IdentityT)
+readEither :: (Read a) => String -> BS.ByteString -> Either String a 
+readEither msg s =  case [x | (x , t) <- reads $ BS.unpack s,
+                              ("","") <- lex t              ] of
+                      [x] -> Right x
+                      _   -> Left  msg
+
+{- Example entry:
+FRAME    1   3
+         1     1 1ryi BBTorsion G L     84.947  -172.572  -169.926
+         2     1 1ryi BBTorsion M E   -128.774   133.712   162.000
+         3     1 1ryi BBTorsion F E    -96.435   112.599   164.256
+
+         1     1 1q8f BBTorsion G L    -76.588   -11.404  -173.341
+         2     1 1q8f BBTorsion I E   -131.601   131.262   171.338
+         3     1 1q8f BBTorsion K E    -90.250   125.167   173.159
+
+FRAME    2   4
+         1     2 1wcu BBTorsion K E   -130.800   129.900   171.200
+         2     2 1wcu BBTorsion M E    -93.700   124.300   171.500
+         3     2 1wcu BBTorsion S E   -132.400   178.400   177.600
+
+FRAME  181 183
+         1   181 1te5 BBTorsion R H    -67.409   -35.897  -179.220
+         2   181 1te5 BBTorsion R H    -71.338   -47.943   180.402
+         3   181 1te5 BBTorsion A H    -72.098   -25.972  -178.065
+
+FRAME <target_seq_startPos> <target_seq_endPos>
+       <resid_in_fragment_no> <target_seq_startPos> <pdbid of origin> BBTorsion <aa FASTA code> <SS code> <phi angle> <psi angle> <omega angle>
+
+NOTE: check that omega is omega, not chi. Normally omega = +-180+-10?
+-}
+-- | Parses a single residue entry within a fragment.
+parseFragEntry :: [BS.ByteString] -> Either String (Int, Int, FragRes)
+parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
+                       pos      <- readEither "pos"    pos_s
+                       ss       <- readEither "sscode" sscode_s
+                       phi      <- readEither "phi"    phi_s
+                       psi      <- readEither "psi"    psi_s
+                       omega    <- readEither "omega"  omega_s
+                       when (BS.length rescode /= 1) $ Left $ "rescode which is not a single character, but '" ++ show rescode ++ "'"
+                       return (entry_no, pos,
+                               FragRes { rescode = BS.head rescode,
+                                         ss      = ss     ,
+                                         phi     = phi    ,
+                                         psi     = psi    ,
+                                         omega   = omega 
+                                       })
+  where
+    [entry_no_s, pos_s, pdbid, "BBTorsion", rescode, sscode_s,
+     phi_s, psi_s, omega_s] = ws
+
+parseFrame ws = do startPos <- readEither "FRAME starting position" startPos_s
+                   endPos   <- readEither "FRAME ending position"   endPos_s
+                   return $! RFrag startPos endPos []
+  where
+    [_frame_string, startPos_s, endPos_s] = ws
+
+
+readLine' :: [(Int, BS.ByteString)] -> RFrag -> [Either String RFrag]
+readLine' []                     rfrag                                 = addFragment rfrag (-1) [] -- fix -1 as meaning end of file
+readLine' ((lineNo, line):rest) curFrag | "FRAME" `BS.isPrefixOf` line = -- yield fragment and then continue parsing
+        case parseFrame $ BS.words line of
+          Right newRFrag -> addFragment curFrag lineNo $ readLine' rest newRFrag
+          Left  errMsg   -> mkError     lineNo errMsg  : readLine' rest curFrag
+readLine' ((lineNo, line):rest) curFrag | null $ BS.words line         = -- finish fragment
+        addFragment curFrag lineNo $ readLine' rest $ curFrag { res = [] }
+readLine' ((lineNo, line):rest) curFrag                                = -- add entry to a current fragment
+        case parseFragEntry $ BS.words line of
+          -- TODO: validate entry_no, pos
+          Right (entry_no, pos, rfentry) -> readLine' rest $ curFrag { res = rfentry : res curFrag }
+          Left  msg                      -> mkError lineNo msg : readLine' rest curFrag
+  where
+    cleanFrag rfrag = rfrag { res = [] }
+
+mkError lineNo msg = Left $ "Error in line " ++ show lineNo ++ " parsing " ++ msg
+
+addFragment rfrag lineNo fragList | null (res rfrag)           = fragList
+addFragment rfrag lineNo fragList | fragLen /= expected_length = mkError lineNo errMsg                       : fragList
+  where
+    fragLen         = length $ res rfrag
+    errMsg          = "fragment length is supposed to be " ++ show expected_length ++ " but is " ++ show fragLen ++ "."
+    expected_length = endPos rfrag - startPos rfrag + 1
+addFragment rfrag lineNo fragList                              = Right (rfrag { res = reverse $ res rfrag }) : fragList
+
+parseFragments input = readLine' (zip [1..] $ BS.lines input) (RFrag (-1) (-1) [])
+
+

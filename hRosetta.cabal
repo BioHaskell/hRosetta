@@ -1,0 +1,53 @@
+name:                hRosetta
+version:             0.1
+stability:           alpha
+homepage:            https://github.com/mgajda/hRosetta
+package-url:         http://hackage.haskell.org/package/hRosetta
+synopsis:            Parser and data structure for manipulating Rosetta files.
+description:         Makes it easier to inspect and edit Rosetta fragment, silent, and restraint files.
+category:            Bioinformatics 
+license:             BSD3
+license-file:        LICENSE
+
+author:              Michal J. Gajda
+copyright:           Copyright by Michal J. Gajda '2013
+maintainer:          mjgajda@googlemail.com
+bug-reports:         mailto:mjgajda@googlemail.com
+
+build-type:          Simple
+cabal-version:       >=1.8
+tested-with:         GHC==7.4.2
+data-files:          README
+
+source-repository head
+  type:     git
+  location: git://github.com:mgajda/hpdb.git
+
+Library
+  ghc-options:      -fspec-constr-count=4 -O3 
+  build-depends:    base>=4.0, base <4.7, bytestring
+  other-modules:    
+  exposed-modules:  Rosetta.SS, Rosetta.PyMol, Rosetta.Restraints, Rosetta.Fragments, Rosetta.Silent
+  exposed:          True
+
+Executable silentToPymol
+  main-is:          scripts/silentToPyMol.hs
+  ghc-options:      -fspec-constr-count=4 -O3 
+  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+
+Executable parseRestraints
+  main-is:          scripts/parseRestraints.hs
+  ghc-options:      -fspec-constr-count=4 -O3 
+  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+
+Test-suite test_Fragments
+  main-is:          tests/test_Fragments.hs
+  Type:             exitcode-stdio-1.0
+  ghc-options:      -fspec-constr-count=4 -O3 
+  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+
+Test-suite test_Restraints
+  main-is:          tests/test_Restraints.hs
+  Type:             exitcode-stdio-1.0
+  ghc-options:      -fspec-constr-count=4 -O3 
+  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, QuickCheck

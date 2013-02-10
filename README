@@ -1,0 +1,5 @@
+Interface to parse ROSETTA restraints, silent files and fragments files.
+Just in case one needs editing or anything similar...
+
+Note that example input files in examples/ directory should be credited
+to CS-ROSETTA and RosettaCommons.
