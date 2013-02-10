@@ -17,7 +17,12 @@ import Rosetta.PyMol
 
 epilogue = "hide all\nshow cartoon\n"
 
-extractRanges []                      = []
+extract = concatMap takeRec
+
+takeRec (Rec r) = [r]
+takeRec _       = []
+
+extractRanges []                            = []
 extractRanges (SilentRec resid ss:rs) = extractRanges' (resid, resid, ss) rs
 
 extractRanges' (resid1, resid2, ss ) []                                       = [(resid1, resid2, ss)]
@@ -26,7 +31,7 @@ extractRanges' (resid1, resid2, ss1) ((SilentRec resid3 ss3):rs)              = 
 
 --  do mapM_ (hPutStrLn outHandle . pymolShowRange) $ extractRanges recs
 pymolScript outHandle recs = 
-  do mapM_ (hPutStrLn outHandle . pymolShow) recs
+  do mapM_ (hPutStrLn outHandle . pymolShow) $ extract recs
      hPutStrLn outHandle epilogue
 
 data Options = Options { optVerbosity :: Int
