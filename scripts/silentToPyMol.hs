@@ -74,7 +74,7 @@ withFile s f = putStr . unlines . f . lines =<< open s
 
 processFile :: Options -> String -> IO ()
 processFile opts filename = do
-  evts <- processSilent $ BS.pack filename
+  evts <- processSilentEvents $ BS.pack filename
   pymolScript stdout evts
   return ()
 

@@ -3,7 +3,8 @@ module Rosetta.Silent where
 
 import System.IO(stderr)
 import Control.Monad.Instances
-import Control.Monad(when, forM)
+import Control.Monad(when, forM_)
+import Data.List(unfoldr)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import Prelude
@@ -14,10 +15,57 @@ data SilentEvent = Rec SilentRec
                  | ScoreHeader [BS.ByteString]
                  | Score       [Double]
                  | Seq         BS.ByteString
+
 data SilentRec = SilentRec { resId :: Int
                            , ss    :: SSCode -- use SSType
                            }
   deriving (Show)
+
+data SilentModel = SilentModel { scores   :: [(BS.ByteString, Double)]
+                               , residues :: [SilentRec]
+                               }
+
+-- TODO: nice way of merging error streams
+--mergeEither f (Left  e:es) = Left e:mergeEither f es
+--mergeEither f (Right e:es) = mergeEither f es
+-- f :: [a] -> [Either b c]
+-- g :: [Either b c]
+-- f .. g :: [c] -> [
+-- Maybe available in Control.Arrow? or Control.Applicative?
+parseSilent :: BS.ByteString -> BS.ByteString -> ([BS.ByteString], [SilentModel])
+parseSilent fname input = (allErrors, mdls)
+  where
+    allErrors     = errs ++ merrs
+    (errs,  evts) = parseSilentEvents input
+    (merrs, mdls) = partitionEithers  $ parseSilent' evts
+    parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
+    parseSilent' (Seq seq:ScoreHeader lbls:r) = unfoldr (buildModel lbls) r
+
+processSilent :: BS.ByteString -> IO [SilentModel]
+processSilent fname = do input <- BS.readFile $ BS.unpack fname
+                         let (errs, mdls) = parseSilent fname input
+                         processErrors fname errs
+                         return $! mdls
+
+--TODO: validate models in buildModel
+buildModel :: [BS.ByteString] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
+buildModel lbls []           = Nothing
+buildModel lbls (Score s:rs) = takeModel rs [] (mCont lbls s)
+  where
+    mCont :: [BS.ByteString] -> [Double] -> [SilentRec] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
+    mCont lbls scores recs rs | length scores == length lbls = Just $ (Right $ SilentModel { scores   = zip lbls scores
+                                                                                           , residues = recs
+                                                                                           }
+                                                                      , rs)
+    mCont lbls scores rec rs = Just $ (Left $ BS.concat ["Score list is of different length than headers: "
+                                                        , BS.pack $ show scores
+                                                        , " vs "
+                                                        , BS.pack $ show lbls  ]
+                                      , rs)
+    takeModel :: [SilentEvent] -> [SilentRec] -> ([SilentRec] -> [SilentEvent] -> a) -> a
+    takeModel []              aList cont = cont (reverse aList) []
+    takeModel rs@(Score s:_ ) aList cont = cont (reverse aList) rs
+    takeModel    (Rec   r:rs) aList cont = takeModel rs (r:aList) cont
 
 {-
 SEQUENCE: VLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKK
@@ -58,11 +106,10 @@ parseSilentEvents :: BS.ByteString -> ([BS.ByteString],
                                        [SilentEvent]  )
 parseSilentEvents = partitionEithers . map parseSilentEventLine . BS.lines
 
-processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` BS.readFile (BS.unpack fname)
-                               forM errs $ \s -> BS.hPutStrLn stderr $
-                                                   BS.concat ["Error parsing ", fname, ":", s]
-                               return $! evts
+processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
+                                                BS.concat ["Error parsing ", fname, ":", s]
 
--- TODO: make an output data structure
-processSilent = processSilentEvents
+processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` BS.readFile (BS.unpack fname)
+                               processErrors fname errs
+                               return $! evts
 
