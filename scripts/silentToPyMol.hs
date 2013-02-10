@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 module Main( main ) where
 
 import System.Exit
@@ -8,6 +8,7 @@ import System.IO
 import Control.Monad.Instances
 import Control.Monad(when)
 import Data.Either(partitionEithers)
+import qualified Data.ByteString.Char8 as BS
 import Prelude
 
 import Rosetta.SS
@@ -68,13 +69,8 @@ withFile s f = putStr . unlines . f . lines =<< open s
 
 processFile :: Options -> String -> IO ()
 processFile opts filename = do
-  input <- if filename == "-"
-           then getContents
-           else readFile filename
-  let (errs, recs) = parseSilentOut input
-  mapM_ (\s -> when (s/="") $ hPutStrLn stderr s) errs
-  pymolScript stdout recs
-  --hPrint stderr $ "File " ++ filename ++ " contains " ++ (show $ length input) ++ " characters."
+  evts <- processSilent $ BS.pack filename
+  pymolScript stdout evts
   return ()
 
 main = do
