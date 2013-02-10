@@ -3,7 +3,8 @@
 module Rosetta.Fragments where
 
 import Data.Typeable
-import Control.Monad(when)
+import System.IO(hPrint, stderr)
+import Control.Monad(when, forM)
 import Control.Monad.Instances
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
@@ -109,6 +110,11 @@ addFragment rfrag lineNo fragList | fragLen /= expected_length = mkError lineNo 
     expected_length = endPos rfrag - startPos rfrag + 1
 addFragment rfrag lineNo fragList                              = Right (rfrag { res = reverse $ res rfrag }) : fragList
 
-parseFragments input = readLine' (zip [1..] $ BS.lines input) (RFrag (-1) (-1) [])
+parseFragments input = partitionEithers $ readLine' (zip [1..] $ BS.lines input) (RFrag (-1) (-1) [])
+
+parseFragmentsFile fname = do (errs, frags) <- parseFragments `fmap` BS.readFile fname
+                              forM errs $ 
+                                \e -> hPrint stderr ("Error in fragments file " ++ fname ++ ": " ++ e)
+                              return $! frags -- TODO: strict spine of the list?
 
 

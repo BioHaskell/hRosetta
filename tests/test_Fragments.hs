@@ -1,9 +1,11 @@
 module Main where
 
+import System.IO(hPrint, stderr)
 import qualified Data.ByteString.Char8 as BS
 
-import Rosetta.Fragments(parseFragments)
+import Rosetta.Fragments(parseFragmentsFile)
 
-main = do input <- BS.readFile "examples/aat000_03.200_R3"
-          print $ take 10 $ parseFragments input
+main = do frags <- parseFragmentsFile "examples/aat000_03.200_R3"
+          print $ take 10 frags
+          print $ length frags
 
