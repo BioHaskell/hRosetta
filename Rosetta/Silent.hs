@@ -18,8 +18,9 @@ data SilentEvent = Rec SilentRec
                  | Seq         BS.ByteString
   deriving (Show)
 
-data SilentRec = SilentRec { resId :: Int
-                           , ss    :: SSCode -- use SSType
+data SilentRec = SilentRec { resId           :: Int
+                           , ss              :: SSCode -- use SSType
+                           , phi, psi, omega :: Double
                            }
   deriving (Show)
 
@@ -29,6 +30,12 @@ data SilentModel = SilentModel { name     :: BS.ByteString
                                }
   deriving (Show)
 
+{- FORMAT EXAMPLE:
+SEQUENCE: VLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKK
+SCORE:      score     env    pair     vdw      hs      ss   sheet      cb  rsigma hb_srbb hb_lrbb      rg      co contact    rama   bk_tot   fa_atr   fa_rep   fa_sol  h2o_sol     hbsc   fa_dun fa_intra  fa_pair fa_plane  fa_prob   fa_h2o   h2o_hb    gsolt     sasa      pc pc_viol omega_sc rlxfilt1 rlxfilt2 description
+SCORE:    2954.02   44.38  -99.13   11.30    0.00 -101.36   21.74   82.24  -11.74  -12.96  -35.55   29.68   82.95    0.00 1049.23  2369.39  -957.50   610.63   547.90     0.00   -43.91   307.99     0.97   -18.23     0.00   -43.19     0.00     0.00   323.27 22609.70 2069.07 3071.97   693.44  5446.99  2958.41 S_0319_8954
+   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
+ -}
 -- TODO: nice way of merging error streams
 --mergeEither f (Left  e:es) = Left e:mergeEither f es
 --mergeEither f (Right e:es) = mergeEither f es
@@ -75,13 +82,6 @@ buildModel lbls (Score s n:rs) = takeModel rs [] (mCont lbls s n)
     takeModel    (Rec   r  :rs) aList cont = takeModel rs (r:aList) cont
 buildModel lbls (r:_)        = error $ "buildModel with argument starting with " ++ show r
 
-{-
-SEQUENCE: VLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKK
-SCORE:      score     env    pair     vdw      hs      ss   sheet      cb  rsigma hb_srbb hb_lrbb      rg      co contact    rama   bk_tot   fa_atr   fa_rep   fa_sol  h2o_sol     hbsc   fa_dun fa_intra  fa_pair fa_plane  fa_prob   fa_h2o   h2o_hb    gsolt     sasa      pc pc_viol omega_sc rlxfilt1 rlxfilt2 description
-SCORE:    2954.02   44.38  -99.13   11.30    0.00 -101.36   21.74   82.24  -11.74  -12.96  -35.55   29.68   82.95    0.00 1049.23  2369.39  -957.50   610.63   547.90     0.00   -43.91   307.99     0.97   -18.23     0.00   -43.19     0.00     0.00   323.27 22609.70 2069.07 3071.97   693.44  5446.99  2958.41 S_0319_8954
-   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
- -}
-
 parseSilentEventLine :: BS.ByteString -> Either BS.ByteString SilentEvent
 parseSilentEventLine line = parse' $ BS.words line
   where
@@ -89,9 +89,16 @@ parseSilentEventLine line = parse' $ BS.words line
     parse' ("SCORE:"    :s) = parseScoreOrHeader s
     parse' ("SEQUENCE:" :s) = parseSequence      s
     parse' []               = Left ""
-    parse' (numStr:ssStr:_) = do i  :: Int    <- parse "residue number"           numStr
-                                 ss :: SSCode <- parse "secondary structure code" ssStr
-                                 return $ Rec $ SilentRec i ss
+    -- TODO: validate mNameStr with model name in SCORE header!
+--            chi1, chi2, chi3, chi4, chi5, chi6, chi7, mNameStr] =
+    parse' (numStr:ssStr:phiStr:psiStr:omegaStr:_) = do
+           i     :: Int    <- parse "residue number"           numStr
+           ss    :: SSCode <- parse "secondary structure code" ssStr
+           phi   :: Double <- parse "phi"                      phiStr
+           psi   :: Double <- parse "psi"                      psiStr
+           omega :: Double <- parse "omega"                    omegaStr
+           return $ Rec $ SilentRec i ss phi psi omega
+--   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
     parse :: (Read a) => BS.ByteString -> BS.ByteString -> Either BS.ByteString a
     parse recName str = case reads $ BS.unpack str of
                           [(i, [])] -> Right i
