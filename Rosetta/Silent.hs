@@ -13,17 +13,21 @@ import Rosetta.SS
 
 data SilentEvent = Rec SilentRec
                  | ScoreHeader [BS.ByteString]
-                 | Score       [Double]
+                 | Score       { values      :: [Double]
+                               , description :: BS.ByteString }
                  | Seq         BS.ByteString
+  deriving (Show)
 
 data SilentRec = SilentRec { resId :: Int
                            , ss    :: SSCode -- use SSType
                            }
   deriving (Show)
 
-data SilentModel = SilentModel { scores   :: [(BS.ByteString, Double)]
+data SilentModel = SilentModel { name     :: BS.ByteString
+                               , scores   :: [(BS.ByteString, Double)]
                                , residues :: [SilentRec]
                                }
+  deriving (Show)
 
 -- TODO: nice way of merging error streams
 --mergeEither f (Left  e:es) = Left e:mergeEither f es
@@ -39,7 +43,7 @@ parseSilent fname input = (allErrors, mdls)
     (errs,  evts) = parseSilentEvents input
     (merrs, mdls) = partitionEithers  $ parseSilent' evts
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
-    parseSilent' (Seq seq:ScoreHeader lbls:r) = unfoldr (buildModel lbls) r
+    parseSilent' (Seq seq:ScoreHeader lbls:r) = unfoldr (buildModel $ init lbls) r
 
 processSilent :: BS.ByteString -> IO [SilentModel]
 processSilent fname = do input <- BS.readFile $ BS.unpack fname
@@ -49,23 +53,27 @@ processSilent fname = do input <- BS.readFile $ BS.unpack fname
 
 --TODO: validate models in buildModel
 buildModel :: [BS.ByteString] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
-buildModel lbls []           = Nothing
-buildModel lbls (Score s:rs) = takeModel rs [] (mCont lbls s)
+buildModel lbls []             = Nothing
+buildModel lbls (Score s n:rs) = takeModel rs [] (mCont lbls s n)
   where
-    mCont :: [BS.ByteString] -> [Double] -> [SilentRec] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
-    mCont lbls scores recs rs | length scores == length lbls = Just $ (Right $ SilentModel { scores   = zip lbls scores
-                                                                                           , residues = recs
-                                                                                           }
-                                                                      , rs)
-    mCont lbls scores rec rs = Just $ (Left $ BS.concat ["Score list is of different length than headers: "
-                                                        , BS.pack $ show scores
-                                                        , " vs "
-                                                        , BS.pack $ show lbls  ]
-                                      , rs)
+    mCont :: [BS.ByteString] -> [Double] -> BS.ByteString -> [SilentRec] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
+    mCont lbls scores n recs rs | length scores == length lbls = Just $ (Right $ SilentModel { scores   = zip lbls scores
+                                                                                             , residues = recs
+                                                                                             , name     = n
+                                                                                             }
+                                                                        , rs)
+    mCont lbls scores n rec rs = Just $ (Left $ BS.concat ["Score list for model "
+                                                          , n
+                                                          , " is of different length than headers: "
+                                                          , BS.pack $ show scores
+                                                          , " vs "
+                                                          , BS.pack $ show lbls  ]
+                                        , rs)
     takeModel :: [SilentEvent] -> [SilentRec] -> ([SilentRec] -> [SilentEvent] -> a) -> a
-    takeModel []              aList cont = cont (reverse aList) []
-    takeModel rs@(Score s:_ ) aList cont = cont (reverse aList) rs
-    takeModel    (Rec   r:rs) aList cont = takeModel rs (r:aList) cont
+    takeModel []                aList cont = cont (reverse aList) []
+    takeModel rs@(Score _ _:_ ) aList cont = cont (reverse aList) rs
+    takeModel    (Rec   r  :rs) aList cont = takeModel rs (r:aList) cont
+buildModel lbls (r:_)        = error $ "buildModel with argument starting with " ++ show r
 
 {-
 SEQUENCE: VLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKK
@@ -91,8 +99,9 @@ parseSilentEventLine line = parse' $ BS.words line
                                                          " ", BS.pack (show str) ]
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
     parseScoreOrHeader lbls@("score":_) = Right $ ScoreHeader lbls
-    parseScoreOrHeader vals             = do vals :: [Double] <- sequence $ zipWith parseCol vals [1..]
-                                             return $ Score vals
+    parseScoreOrHeader cols             = do vals :: [Double] <- sequence $ zipWith parseCol (init cols) [1..]
+                                             return $ Score { values      = vals
+                                                            , description = (last cols) }
       where
         parseCol :: BS.ByteString -> Int -> Either BS.ByteString Double
         parseCol col num = parse ("score column " `BS.append` BS.pack (show num)) col

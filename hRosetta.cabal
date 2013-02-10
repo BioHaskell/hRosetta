@@ -51,3 +51,9 @@ Test-suite test_Restraints
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
   Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, QuickCheck
+ 
+Test-suite test_Silent
+  main-is:          tests/test_Silent.hs
+  Type:             exitcode-stdio-1.0
+  ghc-options:      -fspec-constr-count=4 -O3 
+  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, QuickCheck
