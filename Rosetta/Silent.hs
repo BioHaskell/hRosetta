@@ -18,9 +18,11 @@ data SilentEvent = Rec SilentRec
                  | Seq         BS.ByteString
   deriving (Show)
 
-data SilentRec = SilentRec { resId           :: Int
-                           , ss              :: SSCode -- use SSType
-                           , phi, psi, omega :: Double
+data SilentRec = SilentRec { resId                  :: Int
+                           , ss                     :: SSCode -- use SSType
+                           , phi, psi, omega        :: Double
+                           , caX, caY, caZ          :: Double 
+                           , chi1, chi2, chi3, chi4 :: Double 
                            }
   deriving (Show)
 
@@ -89,16 +91,25 @@ parseSilentEventLine line = parse' $ BS.words line
     parse' ("SCORE:"    :s) = parseScoreOrHeader s
     parse' ("SEQUENCE:" :s) = parseSequence      s
     parse' []               = Left ""
-    -- TODO: validate mNameStr with model name in SCORE header!
---            chi1, chi2, chi3, chi4, chi5, chi6, chi7, mNameStr] =
-    parse' (numStr:ssStr:phiStr:psiStr:omegaStr:_) = do
+    -- TODO: validate mName with model name in SCORE header!
+    parse' [numStr, ssStr,
+            phiStr, psiStr,  omegaStr,
+            caXStr, caYStr, caZStr,
+            chi1Str, chi2Str, chi3Str, chi4Str, mName] = do
            i     :: Int    <- parse "residue number"           numStr
            ss    :: SSCode <- parse "secondary structure code" ssStr
            phi   :: Double <- parse "phi"                      phiStr
            psi   :: Double <- parse "psi"                      psiStr
            omega :: Double <- parse "omega"                    omegaStr
-           return $ Rec $ SilentRec i ss phi psi omega
---   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
+           caX   :: Double <- parse "C-alpha X coordinate"     caXStr
+           caY   :: Double <- parse "C-alpha Y coordinate"     caYStr
+           caZ   :: Double <- parse "C-alpha Z coordinate"     caZStr
+           chi1  :: Double <- parse "chi1"                     chi1Str
+           chi2  :: Double <- parse "chi2"                     chi2Str
+           chi3  :: Double <- parse "chi3"                     chi3Str
+           chi4  :: Double <- parse "chi4"                     chi4Str
+           return $ Rec $ SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
+    --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
     parse :: (Read a) => BS.ByteString -> BS.ByteString -> Either BS.ByteString a
     parse recName str = case reads $ BS.unpack str of
                           [(i, [])] -> Right i
