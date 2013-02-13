@@ -14,7 +14,8 @@ import Rosetta.SS
 data SilentEvent = Rec SilentRec
                  | ScoreHeader [BS.ByteString]
                  | Score       { values      :: [Double]
-                               , description :: BS.ByteString }
+                               , description :: BS.ByteString
+                               }
                  | Seq         BS.ByteString
   deriving (Show)
 
@@ -25,9 +26,11 @@ data SilentRec = SilentRec { resId                  :: Int
                            , chi1, chi2, chi3, chi4 :: Double 
                            }
   deriving (Show)
+-- TODO: replace Show/Read with parser and printer for ROSETTA format.
 
 data SilentModel = SilentModel { name     :: BS.ByteString
-                               , scores   :: [(BS.ByteString, Double)]
+                               , scores   :: [(BS.ByteString,
+                                               Double       )]
                                , residues :: [SilentRec]
                                }
   deriving (Show)
