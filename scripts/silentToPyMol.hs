@@ -23,11 +23,14 @@ takeRec (Rec r) = [r]
 takeRec _       = []
 
 extractRanges []                            = []
-extractRanges (SilentRec resid ss:rs) = extractRanges' (resid, resid, ss) rs
+extractRanges (silentRec:rs) = extractRanges' (resId silentRec, resId silentRec, ss silentRec) rs
 
 extractRanges' (resid1, resid2, ss ) []                                       = [(resid1, resid2, ss)]
-extractRanges' (resid1, resid2, ss1) ((SilentRec resid3 ss3):rs) | ss1 == ss3 = extractRanges' (resid1, resid3, ss1) rs
-extractRanges' (resid1, resid2, ss1) ((SilentRec resid3 ss3):rs)              = (resid1, resid2, ss1):extractRanges' (resid3, resid3, ss3) rs
+extractRanges' (resid1, resid2, ss1) (silentRec:rs) | ss1 == ss silentRec = extractRanges' (resid1, resId silentRec, ss1) rs
+extractRanges' (resid1, resid2, ss1) (silentRec:rs)                       = (resid1, resid2, ss1):extractRanges' (resid3, resid3, ss3) rs
+  where
+    resid3 = resId silentRec
+    ss3    = ss    silentRec
 
 --  do mapM_ (hPutStrLn outHandle . pymolShowRange) $ extractRanges recs
 pymolScript outHandle recs = 

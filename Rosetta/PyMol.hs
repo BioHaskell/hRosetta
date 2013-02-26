@@ -11,7 +11,7 @@ pymolSSCode Helix  = 'H'
 
 --alter A/447:451/ and "MyModel", ss='S'
 --rebuild
-pymolShow      (SilentRec resid ss) = "alter A/"++shows resid "/, ss='"++pymolSSCode ss:"'"
+pymolShow      silentRec = "alter A/"++shows (resId silentRec) "/, ss='"++pymolSSCode (ss silentRec):"'"
 pymolShowRange (resid1, resid2, ss) = ("alter A/"++) . shows resid1 . (":"++) . shows resid2 .
                                       shows "/, ss='" $ pymolSSCode ss:"'"
 
