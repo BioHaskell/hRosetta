@@ -7,7 +7,7 @@ import Control.Monad(when, forM_)
 import Data.List(unfoldr)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
-import Prelude
+import Prelude hiding(seq)
 
 import Rosetta.SS
 
@@ -32,6 +32,7 @@ data SilentModel = SilentModel { name     :: BS.ByteString
                                , scores   :: [(BS.ByteString,
                                                Double       )]
                                , residues :: [SilentRec]
+                               , fastaSeq :: BS.ByteString
                                }
   deriving (Show)
 
@@ -48,6 +49,10 @@ SCORE:    2954.02   44.38  -99.13   11.30    0.00 -101.36   21.74   82.24  -11.7
 -- g :: [Either b c]
 -- f .. g :: [c] -> [
 -- Maybe available in Control.Arrow? or Control.Applicative?
+
+-- | Parses input filename and contents as a Silent file format input.
+--   Filename is first argument, and is prepended to all error messages.
+--   Result is a tuple of list of error messages, and `SilentModel`s.
 parseSilent :: BS.ByteString -> BS.ByteString -> ([BS.ByteString], [SilentModel])
 parseSilent fname input = (allErrors, mdls)
   where
@@ -55,7 +60,7 @@ parseSilent fname input = (allErrors, mdls)
     (errs,  evts) = parseSilentEvents input
     (merrs, mdls) = partitionEithers  $ parseSilent' evts
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
-    parseSilent' (Seq seq:ScoreHeader lbls:r) = unfoldr (buildModel $ init lbls) r
+    parseSilent' (Seq seq:ScoreHeader lbls:r) = unfoldr (buildModel seq $ init lbls) r
 
 processSilent :: BS.ByteString -> IO [SilentModel]
 processSilent fname = do input <- BS.readFile $ BS.unpack fname
@@ -64,28 +69,37 @@ processSilent fname = do input <- BS.readFile $ BS.unpack fname
                          return $! mdls
 
 --TODO: validate models in buildModel
-buildModel :: [BS.ByteString] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
-buildModel lbls []             = Nothing
-buildModel lbls (Score s n:rs) = takeModel rs [] (mCont lbls s n)
+buildModel :: BS.ByteString ->
+              [BS.ByteString] ->
+              [SilentEvent] ->
+              Maybe (Either BS.ByteString SilentModel
+                    ,[SilentEvent])
+buildModel mSeq lbls []             = Nothing
+buildModel mSeq lbls (Score s n:rs) = takeModel rs [] (mCont mSeq lbls s n)
   where
-    mCont :: [BS.ByteString] -> [Double] -> BS.ByteString -> [SilentRec] -> [SilentEvent] -> Maybe (Either BS.ByteString SilentModel, [SilentEvent])
-    mCont lbls scores n recs rs | length scores == length lbls = Just $ (Right $ SilentModel { scores   = zip lbls scores
-                                                                                             , residues = recs
-                                                                                             , name     = n
-                                                                                             }
-                                                                        , rs)
-    mCont lbls scores n rec rs = Just $ (Left $ BS.concat ["Score list for model "
-                                                          , n
-                                                          , " is of different length than headers: "
-                                                          , BS.pack $ show scores
-                                                          , " vs "
-                                                          , BS.pack $ show lbls  ]
-                                        , rs)
+    mCont :: BS.ByteString -> [BS.ByteString] ->
+             [Double] -> BS.ByteString ->
+             [SilentRec] -> [SilentEvent] ->
+             Maybe ( Either BS.ByteString SilentModel
+                   , [SilentEvent] )
+    mCont mSeq lbls scores n recs rs | length scores == length lbls = Just $ (Right $ SilentModel { scores   = zip lbls scores
+                                                                                                  , residues = recs
+                                                                                                  , name     = n
+                                                                                                  , fastaSeq = mSeq
+                                                                                                  }
+                                                                             , rs)
+    mCont mSeq lbls scores n rec rs = Just $ (Left $ BS.concat ["Score list for model "
+                                                               , n
+                                                               , " is of different length than headers: "
+                                                               , BS.pack $ show scores
+                                                               , " vs "
+                                                               , BS.pack $ show lbls  ]
+                                             , rs)
     takeModel :: [SilentEvent] -> [SilentRec] -> ([SilentRec] -> [SilentEvent] -> a) -> a
     takeModel []                aList cont = cont (reverse aList) []
     takeModel rs@(Score _ _:_ ) aList cont = cont (reverse aList) rs
     takeModel    (Rec   r  :rs) aList cont = takeModel rs (r:aList) cont
-buildModel lbls (r:_)        = error $ "buildModel with argument starting with " ++ show r
+buildModel mSeq lbls (r:_)          = error $ "buildModel with argument starting with " ++ show r
 
 parseSilentEventLine :: BS.ByteString -> Either BS.ByteString SilentEvent
 parseSilentEventLine line = parse' $ BS.words line
