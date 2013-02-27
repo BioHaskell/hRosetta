@@ -4,17 +4,18 @@ module Rosetta.Silent where
 import System.IO(stderr)
 import Control.Monad.Instances
 import Control.Monad(when, forM_)
-import Data.List(unfoldr)
+import Data.List(unfoldr, minimumBy, sortBy)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import Prelude hiding(seq)
 
 import Rosetta.SS
 
-data SilentEvent = Rec SilentRec
-                 | ScoreHeader [BS.ByteString]
-                 | Score       { values      :: [Double]
-                               , description :: BS.ByteString
+data SilentEvent = Rec         { unRec        :: SilentRec }
+                 | ScoreHeader { labels
+                               , descLabels :: [BS.ByteString] }
+                 | Score       { values       :: [Double       ]
+                               , descriptions :: [BS.ByteString]
                                }
                  | Seq         BS.ByteString
   deriving (Show)
@@ -22,17 +23,18 @@ data SilentEvent = Rec SilentRec
 data SilentRec = SilentRec { resId                  :: Int
                            , ss                     :: SSCode -- use SSType
                            , phi, psi, omega        :: Double
-                           , caX, caY, caZ          :: Double 
-                           , chi1, chi2, chi3, chi4 :: Double 
+                           , caX, caY, caZ          :: Double
+                           , chi1, chi2, chi3, chi4 :: Double
                            }
   deriving (Show)
 -- TODO: replace Show/Read with parser and printer for ROSETTA format.
 
-data SilentModel = SilentModel { name     :: BS.ByteString
-                               , scores   :: [(BS.ByteString,
-                                               Double       )]
-                               , residues :: [SilentRec]
-                               , fastaSeq :: BS.ByteString
+data SilentModel = SilentModel { name              :: BS.ByteString
+                               , otherDescriptions :: [(BS.ByteString, BS.ByteString)]
+                               , scores            :: [(BS.ByteString,
+                                                        Double       )]
+                               , residues          :: [SilentRec]
+                               , fastaSeq          :: BS.ByteString
                                }
   deriving (Show)
 
@@ -60,7 +62,7 @@ parseSilent fname input = (allErrors, mdls)
     (errs,  evts) = parseSilentEvents input
     (merrs, mdls) = partitionEithers  $ parseSilent' evts
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
-    parseSilent' (Seq seq:ScoreHeader lbls:r) = unfoldr (buildModel seq $ init lbls) r
+    parseSilent' (Seq seq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel seq lbls descLbls) r
 
 processSilent :: BS.ByteString -> IO [SilentModel]
 processSilent fname = do input <- BS.readFile $ BS.unpack fname
@@ -71,35 +73,43 @@ processSilent fname = do input <- BS.readFile $ BS.unpack fname
 --TODO: validate models in buildModel
 buildModel :: BS.ByteString ->
               [BS.ByteString] ->
+              [BS.ByteString] ->
               [SilentEvent] ->
               Maybe (Either BS.ByteString SilentModel
                     ,[SilentEvent])
-buildModel mSeq lbls []             = Nothing
-buildModel mSeq lbls (Score s n:rs) = takeModel rs [] (mCont mSeq lbls s n)
+buildModel mSeq lbls descLbls []             = Nothing
+buildModel mSeq lbls descLbls (Score s ds:rs) = takeModel rs [] $ mCont mSeq lbls descLbls s ds
   where
-    mCont :: BS.ByteString -> [BS.ByteString] ->
-             [Double] -> BS.ByteString ->
-             [SilentRec] -> [SilentEvent] ->
+{- mCont :: BS.ByteString   ->
+             [BS.ByteString] ->
+             [BS.ByteString] ->
+             [Double]        ->
+             [BS.ByteString] ->
+             BS.ByteString   ->
+             [SilentRec]     ->
+             [SilentEvent]   ->
              Maybe ( Either BS.ByteString SilentModel
-                   , [SilentEvent] )
-    mCont mSeq lbls scores n recs rs | length scores == length lbls = Just $ (Right $ SilentModel { scores   = zip lbls scores
-                                                                                                  , residues = recs
-                                                                                                  , name     = n
-                                                                                                  , fastaSeq = mSeq
-                                                                                                  }
-                                                                             , rs)
-    mCont mSeq lbls scores n rec rs = Just $ (Left $ BS.concat ["Score list for model "
-                                                               , n
-                                                               , " is of different length than headers: "
-                                                               , BS.pack $ show scores
-                                                               , " vs "
-                                                               , BS.pack $ show lbls  ]
-                                             , rs)
+                   , [SilentEvent] ) -}
+    mCont mSeq lbls descLbls scores descs recs rs | length scores == length lbls =
+                                                    Just $ (Right $ SilentModel { scores   = zip lbls scores
+                                                                                , residues = recs
+                                                                                , name     = last descs
+                                                                                , otherDescriptions = zip descLbls $ init descs
+                                                                                , fastaSeq = mSeq
+                                                                                }
+                                                           , rs)
+    mCont mSeq lbls descLbls scores descs rec rs  = Just $ (Left $ BS.concat ["Score list for model "
+                                                                             , last descs
+                                                                             , " is of different length than headers: "
+                                                                             , BS.pack $ show scores
+                                                                             , " vs "
+                                                                             , BS.pack $ show lbls   ]
+                                                           , rs)
     takeModel :: [SilentEvent] -> [SilentRec] -> ([SilentRec] -> [SilentEvent] -> a) -> a
     takeModel []                aList cont = cont (reverse aList) []
     takeModel rs@(Score _ _:_ ) aList cont = cont (reverse aList) rs
     takeModel    (Rec   r  :rs) aList cont = takeModel rs (r:aList) cont
-buildModel mSeq lbls (r:_)          = error $ "buildModel with argument starting with " ++ show r
+buildModel mSeq lbls descLbls (r:_)          = error $ "buildModel with argument starting with " ++ show r
 
 parseSilentEventLine :: BS.ByteString -> Either BS.ByteString SilentEvent
 parseSilentEventLine line = parse' $ BS.words line
@@ -133,11 +143,25 @@ parseSilentEventLine line = parse' $ BS.words line
                           _         -> Left $ BS.concat ["Cannot parse ", recName,
                                                          " ", BS.pack (show str) ]
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
-    parseScoreOrHeader lbls@("score":_) = Right $ ScoreHeader lbls
-    parseScoreOrHeader cols             = do vals :: [Double] <- sequence $ zipWith parseCol (init cols) [1..]
-                                             return $ Score { values      = vals
-                                                            , description = (last cols) }
+    parseScoreOrHeader entries@("score":_) = Right $ ScoreHeader lbls descs
       where
+        descs = takeDescriptions                     entries
+        lbls  = take (length entries - length descs) entries
+        takeDescriptions l@[            "description"] = entries
+        takeDescriptions l@["user_tag", "description"] = entries
+        takeDescriptions (l:ls)                        = takeDescriptions ls
+    parseScoreOrHeader cols             = do vals <- sequence prevals'
+                                             return $ Score { values       = vals
+                                                            , descriptions = descs
+                                                            }
+      where
+        prevals :: [Either BS.ByteString Double] = zipWith parseCol cols [1..]
+        splittingPoint [Left _, Left _] = 2 -- may also have "user_tag"
+        splittingPoint [Left _]         = 1
+        splittingPoint (l:ls)           = splittingPoint ls
+        splittingPoint []               = error $ "Cannot find splitting point in:" ++ (BS.unpack . BS.concat) cols
+        (prevals', descs) = let n = length cols - splittingPoint prevals
+                            in (take n prevals, drop n cols)
         parseCol :: BS.ByteString -> Int -> Either BS.ByteString Double
         parseCol col num = parse ("score column " `BS.append` BS.pack (show num)) col
     parseSequence [seq] = Right $ Seq seq
@@ -156,4 +180,16 @@ processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
 processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` BS.readFile (BS.unpack fname)
                                processErrors fname errs
                                return $! evts
+
+modelScore = lookup "score" . scores
+
+inf = 0/0
+
+modelScoreIfAvailable = maybe inf id . modelScore
+
+a `compareTotalScores` b = modelScoreIfAvailable a `compare` modelScoreIfAvailable b
+
+bestSilentModel = minimumBy compareTotalScores
+
+sortModelsByScore = sortBy compareTotalScores
 
