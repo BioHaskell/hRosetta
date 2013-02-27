@@ -115,9 +115,11 @@ parseSilentEventLine :: BS.ByteString -> Either BS.ByteString SilentEvent
 parseSilentEventLine line = parse' $ BS.words line
   where
     parse' :: [BS.ByteString] -> Either BS.ByteString SilentEvent
-    parse' ("SCORE:"    :s) = parseScoreOrHeader s
-    parse' ("SEQUENCE:" :s) = parseSequence      s
-    parse' []               = Left ""
+    parse' ("SCORE:"              :s) = parseScoreOrHeader s
+    parse' ("SEQUENCE:"           :s) = parseSequence      s
+    parse' ("ANNOTATED_SEQUENCE:" :s) = Left "" -- ignore ROSETTA 3.x ANNOTATED_SEQUENCE
+    parse' ("REMARK"              :s) = Left "" -- ignore ROSETTA 3.x REMARKs 
+    parse' []                         = Left ""
     -- TODO: validate mName with model name in SCORE header!
     parse' [numStr, ssStr,
             phiStr, psiStr,  omegaStr,
@@ -136,6 +138,7 @@ parseSilentEventLine line = parse' $ BS.words line
            chi3  :: Double <- parse "chi3"                     chi3Str
            chi4  :: Double <- parse "chi4"                     chi4Str
            return $ Rec $ SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
+    parse' other                      = error $ "Cannot parse:" ++ (BS.unpack . BS.concat) other
     --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
     parse :: (Read a) => BS.ByteString -> BS.ByteString -> Either BS.ByteString a
     parse recName str = case reads $ BS.unpack str of
@@ -147,8 +150,8 @@ parseSilentEventLine line = parse' $ BS.words line
       where
         descs = takeDescriptions                     entries
         lbls  = take (length entries - length descs) entries
-        takeDescriptions l@[            "description"] = entries
-        takeDescriptions l@["user_tag", "description"] = entries
+        takeDescriptions l@[            "description"] = l
+        takeDescriptions l@["user_tag", "description"] = l
         takeDescriptions (l:ls)                        = takeDescriptions ls
     parseScoreOrHeader cols             = do vals <- sequence prevals'
                                              return $ Score { values       = vals
@@ -172,7 +175,10 @@ parseSilentEventLine line = parse' $ BS.words line
 -- TODO: parse SCORE: entries and join records within each model
 parseSilentEvents :: BS.ByteString -> ([BS.ByteString],
                                        [SilentEvent]  )
-parseSilentEvents = partitionEithers . map parseSilentEventLine . BS.lines
+parseSilentEvents = partitionEithers . filter goodOrError . map parseSilentEventLine . BS.lines
+  where
+    goodOrError (Left "") = False
+    goodOrError other     = True
 
 processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
                                                 BS.concat ["Error parsing ", fname, ":", s]

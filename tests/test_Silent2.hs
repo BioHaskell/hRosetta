@@ -7,10 +7,6 @@ import qualified Data.ByteString.Char8 as BS
 import Rosetta.Silent(processSilent, processSilentEvents, bestSilentModel, name)
 
 -- TODO: make examples/.. path relative to the module path
-main = do evts <- processSilentEvents "examples/silent/best.out"
-          print "EVENTS:"
-          print evts
-          models <- processSilent "examples/silent/best.out"
-          print $ take 10 models
-          print $ length models
+main = do models <- processSilent "examples/silent/newsilent.out"
+          print $ name $ bestSilentModel models
 
