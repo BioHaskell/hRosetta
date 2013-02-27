@@ -8,18 +8,28 @@ import Control.Monad(when, forM)
 import Control.Monad.Instances
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Vector as V
 
 import Rosetta.SS
 
+-- | Record describing single residue within a fragment.
 data FragRes = FragRes { rescode         :: !Char  ,
                          ss              :: !SSCode,
                          phi, psi, omega :: !Double
                        }
   deriving (Show, Read, Typeable)
 
+-- | A single fragment.
 data RFrag = RFrag { startPos :: !Int     ,
                      endPos   :: !Int     ,
-                     res       :: [FragRes]
+                     res      :: V.Vector FragRes
+                   }
+  deriving (Show, Read, Typeable)
+
+-- | Temporary fragment holder during parsing
+data TFrag = TFrag { tStartPos :: !Int     ,
+                     tEndPos   :: !Int     ,
+                     tRes      :: [FragRes]
                    }
   deriving (Show, Read, Typeable)
 
@@ -77,40 +87,46 @@ parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
     [entry_no_s, pos_s, pdbid, "BBTorsion", rescode, sscode_s,
      phi_s, psi_s, omega_s] = ws
 
+
 parseFrame ws = do startPos <- readEither "FRAME starting position" startPos_s
                    endPos   <- readEither "FRAME ending position"   endPos_s
-                   return $! RFrag startPos endPos []
+                   return $! TFrag startPos endPos []
   where
     [_frame_string, startPos_s, endPos_s] = ws
 
 
-readLine' :: [(Int, BS.ByteString)] -> RFrag -> [Either String RFrag]
-readLine' []                     rfrag                                 = addFragment rfrag (-1) [] -- fix -1 as meaning end of file
+readLine' :: [(Int, BS.ByteString)] -> TFrag -> [Either String TFrag]
+readLine' []                    tfrag                                  = addFragment tfrag (-1) [] -- fix -1 as meaning end of file
 readLine' ((lineNo, line):rest) curFrag | "FRAME" `BS.isPrefixOf` line = -- yield fragment and then continue parsing
         case parseFrame $ BS.words line of
           Right newRFrag -> addFragment curFrag lineNo $ readLine' rest newRFrag
           Left  errMsg   -> mkError     lineNo errMsg  : readLine' rest curFrag
 readLine' ((lineNo, line):rest) curFrag | null $ BS.words line         = -- finish fragment
-        addFragment curFrag lineNo $ readLine' rest $ curFrag { res = [] }
+        addFragment curFrag lineNo $ readLine' rest $ curFrag { tRes = [] }
 readLine' ((lineNo, line):rest) curFrag                                = -- add entry to a current fragment
         case parseFragEntry $ BS.words line of
           -- TODO: validate entry_no, pos
-          Right (entry_no, pos, rfentry) -> readLine' rest $ curFrag { res = rfentry : res curFrag }
+          Right (entry_no, pos, rfentry) -> readLine' rest $ curFrag { tRes = rfentry : tRes curFrag }
           Left  msg                      -> mkError lineNo msg : readLine' rest curFrag
   where
-    cleanFrag rfrag = rfrag { res = [] }
+    cleanFrag tfrag = tfrag { tRes = [] }
 
 mkError lineNo msg = Left $ "Error in line " ++ show lineNo ++ " parsing " ++ msg
 
-addFragment rfrag lineNo fragList | null (res rfrag)           = fragList
-addFragment rfrag lineNo fragList | fragLen /= expected_length = mkError lineNo errMsg                       : fragList
+addFragment tfrag lineNo fragList | null (tRes tfrag)          = fragList
+addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo errMsg                       : fragList
   where
-    fragLen         = length $ res rfrag
+    fragLen         = length $ tRes tfrag
     errMsg          = "fragment length is supposed to be " ++ show expected_length ++ " but is " ++ show fragLen ++ "."
-    expected_length = endPos rfrag - startPos rfrag + 1
-addFragment rfrag lineNo fragList                              = Right (rfrag { res = reverse $ res rfrag }) : fragList
+    expected_length = tEndPos tfrag - tStartPos tfrag + 1
+addFragment tfrag lineNo fragList                              = Right (tfrag { tRes = reverse $ tRes tfrag }): fragList
 
-parseFragments input = partitionEithers $ readLine' (zip [1..] $ BS.lines input) (RFrag (-1) (-1) [])
+parseFragments input = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
+  where
+    finalize :: Either String TFrag -> Either String RFrag
+    finalize = either (Left . id) (Right . finalizeTFrag)
+
+finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)
 
 parseFragmentsFile fname = do (errs, frags) <- parseFragments `fmap` BS.readFile fname
                               forM errs $ 
