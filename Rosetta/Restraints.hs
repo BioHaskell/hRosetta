@@ -3,6 +3,7 @@ module Rosetta.Restraints( parseRestraints
                          , parseRestraintsFile
                          , processRestraintsFile
                          , Restraint(..)
+                         , AtomId(..)
                          ) where
 
 import Prelude
