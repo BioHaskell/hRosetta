@@ -1,10 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Rosetta.Restraints(parse, exampleString, splitsAt) where
+module Rosetta.Restraints( parseRestraints
+                         , parseRestraintsFile
+                         , processRestraintsFile
+                         , exampleString
+                         , splitsAt) where
 
 import Prelude
+import System.IO(hPutStrLn, stderr)
 import qualified Data.ByteString.Char8 as BS
 import Data.Either
-import Control.Monad(when)
+import Control.Monad( when
+                    , forM )
 import Control.Monad.Instances()
 
 data Restraint = DistR { at1, at2 :: AtomId ,
@@ -79,12 +85,23 @@ parseRestraint lineNo line = if recType == "AtomPair"
   where
     recType:rec = BS.words line
 
-parse :: BS.ByteString -> ([Restraint], [String])
-parse input = (restraints, errs)
+parseRestraints :: BS.ByteString -> ([Restraint], [String])
+parseRestraints input = (restraints, errs)
   where
     (errs, restraints) = partitionEithers             .
                          map (uncurry parseRestraint) .
                          zip [1..]                    .
                          BS.lines                     $ input
+
+
+parseRestraintsFile fname = parseRestraints `fmap` BS.readFile fname
+
+processRestraintsFile fname = do (restraints, errors) <- parseRestraintsFile fname
+                                 forM errors $ \msg -> do hPutStrLn stderr $ concat [ "ERROR parsing restraints file "
+                                                                                    , fname
+                                                                                    , ": "
+                                                                                    , msg                              ]
+                                 return restraints
+
 
 

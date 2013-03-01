@@ -44,11 +44,7 @@ options =
 
 processFile :: Options -> String -> IO ()
 processFile opts filename = do
-  input <- (if filename == "-"
-            then getContents
-            else readFile filename)
-  let (dat, errs) = Rosetta.Restraints.parse input
-  mapM_ (hPrint stderr) errs
+  dat <- processRestraintsFile filename
   print dat
 
 main = do
