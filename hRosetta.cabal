@@ -26,7 +26,7 @@ source-repository head
 Library
   ghc-options:      -fspec-constr-count=4 -O3 
   build-depends:    base>=4.0, base <4.7, bytestring, vector
-  other-modules:    
+  other-modules:    Rosetta.Util
   exposed-modules:  Rosetta.SS, Rosetta.PyMol, Rosetta.Restraints, Rosetta.Fragments, Rosetta.Silent
   exposed:          True
 

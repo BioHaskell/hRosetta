@@ -2,8 +2,8 @@
 module Rosetta.Restraints( parseRestraints
                          , parseRestraintsFile
                          , processRestraintsFile
-                         , exampleString
-                         , splitsAt) where
+                         , Restraint(..)
+                         ) where
 
 import Prelude
 import System.IO(hPutStrLn, stderr)
@@ -12,6 +12,8 @@ import Data.Either
 import Control.Monad( when
                     , forM )
 import Control.Monad.Instances()
+
+import Rosetta.Util
 
 data Restraint = DistR { at1, at2 :: AtomId ,
                          goal     :: Double }
@@ -33,15 +35,6 @@ data AtomId = AtomId { resName :: BS.ByteString, -- may be empty!
   deriving (Show, Read, Eq)
 -- TODO: define Eq that ignores missing resname
 -- TODO: define nicer Show/Read
-
-splitsAt (i:is) l = x:splitsAt (map (+(-i)) is) r
-  where
-    (x, r) = Prelude.splitAt i l
-splitsAt [] l = [l]
-
-exampleString = BS.concat ["AtomPair  78 VAL CA    1 VAL CA GAUSSIAN 4.80 1.00\n"            ,
-                           "Dihedral  N 307 CA 307 C 307 N 308 BOUNDED 2.20 2.69 0.52 DIHE\n",
-                           "AtomPair  148 ASN CG  185 GLU CB BOUNDED 0.00 7.70 1.00 EXPDAT\n"]
 
 parseFunc lineNo (funcs:spec) = if funcs == "GAUSSIAN"
                                   then do when (length spec <2) $ Left $ "Not enough arguments to GAUSSIAN in line " ++ show lineNo
