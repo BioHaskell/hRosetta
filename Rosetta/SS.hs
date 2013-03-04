@@ -2,12 +2,13 @@
 module Rosetta.SS where
 
 import Data.Typeable
+import Data.Data
 
 -- NOTE data structure and instances are duplicated with RosettaFrag.hs
 data SSCode = Loop   |
               Strand |
               Helix
-  deriving (Eq, Ord, Typeable)
+  deriving (Eq, Ord, Enum, Typeable, Data)
 
 instance Show SSCode where
   showsPrec _ Loop   = ('L':)

@@ -3,6 +3,7 @@
 module Rosetta.Fragments where
 
 import Data.Typeable
+import Data.Data
 import System.IO(hPrint, stderr)
 import Control.Monad(when, forM)
 import Control.Monad.Instances
@@ -17,7 +18,7 @@ data FragRes = FragRes { rescode         :: !Char  ,
                          ss              :: !SSCode,
                          phi, psi, omega :: !Double
                        }
-  deriving (Show, Read, Typeable)
+  deriving (Show, Read, Typeable, Data)
 
 -- | A single fragment.
 data RFrag = RFrag { startPos :: !Int     ,
@@ -31,7 +32,7 @@ data TFrag = TFrag { tStartPos :: !Int     ,
                      tEndPos   :: !Int     ,
                      tRes      :: [FragRes]
                    }
-  deriving (Show, Read, Typeable)
+  deriving (Show, Read, Typeable, Data)
 
 -- | This is temporary, until readMaybe gets into Prelude!
 --   Or replace it with readE that returns a parse error with line no

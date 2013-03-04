@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable #-}
 module Rosetta.Silent where
 
 import System.IO(stderr)
@@ -8,6 +8,8 @@ import Data.List(unfoldr, minimumBy, sortBy)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import Prelude hiding(seq)
+import Data.Typeable
+import Data.Data
 
 import Rosetta.SS
 
@@ -18,7 +20,7 @@ data SilentEvent = Rec         { unRec        :: SilentRec }
                                , descriptions :: [BS.ByteString]
                                }
                  | Seq         BS.ByteString
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 data SilentRec = SilentRec { resId                  :: Int
                            , ss                     :: SSCode -- use SSType
@@ -26,7 +28,7 @@ data SilentRec = SilentRec { resId                  :: Int
                            , caX, caY, caZ          :: Double
                            , chi1, chi2, chi3, chi4 :: Double
                            }
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 -- TODO: replace Show/Read with parser and printer for ROSETTA format.
 
 data SilentModel = SilentModel { name              :: BS.ByteString
@@ -36,7 +38,7 @@ data SilentModel = SilentModel { name              :: BS.ByteString
                                , residues          :: [SilentRec]
                                , fastaSeq          :: BS.ByteString
                                }
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 {- FORMAT EXAMPLE:
 SEQUENCE: VLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKK

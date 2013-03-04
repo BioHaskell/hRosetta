@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 module Rosetta.Restraints( parseRestraints
                          , parseRestraintsFile
                          , processRestraintsFile
@@ -10,6 +10,8 @@ import Prelude
 import System.IO(hPutStrLn, stderr)
 import qualified Data.ByteString.Char8 as BS
 import Data.Either
+import Data.Data
+import Data.Typeable
 import Control.Monad( when
                     , forM )
 import Control.Monad.Instances()
@@ -20,7 +22,7 @@ data Restraint = DistR { at1, at2 :: AtomId ,
                          goal     :: Double }
                | DiheR { at1, at2, at3, at4 :: AtomId ,
                          goal               :: Double }
-  deriving (Read, Eq)
+  deriving (Read, Eq, Data, Typeable)
 -- TODO: define Show that prints out Rosetta format?
 
 instance Show Restraint where
@@ -33,7 +35,7 @@ data AtomId = AtomId { resName :: BS.ByteString, -- may be empty!
                        atName  :: BS.ByteString,
                        resId   :: Int
                      }
-  deriving (Show, Read, Eq)
+  deriving (Show, Read, Eq, Data, Typeable)
 -- TODO: define Eq that ignores missing resname
 -- TODO: define nicer Show/Read
 
