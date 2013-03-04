@@ -15,30 +15,21 @@ import Rosetta.SS
 import Rosetta.Silent
 import Rosetta.PyMol
 
-epilogue = "hide all\nshow cartoon\n"
+data Options = Options { optVerbosity :: Int
+                       }
 
-extract = concatMap takeRec
+extract = makeModel . concatMap takeRec
+
+makeModel recs = SilentModel { name              = undefined
+                             , otherDescriptions = undefined
+                             , scores            = undefined
+                             , residues          = recs
+                             , fastaSeq          = undefined
+                             }
+
 
 takeRec (Rec r) = [r]
 takeRec _       = []
-
-extractRanges []                            = []
-extractRanges (silentRec:rs) = extractRanges' (resId silentRec, resId silentRec, ss silentRec) rs
-
-extractRanges' (resid1, resid2, ss ) []                                       = [(resid1, resid2, ss)]
-extractRanges' (resid1, resid2, ss1) (silentRec:rs) | ss1 == ss silentRec = extractRanges' (resid1, resId silentRec, ss1) rs
-extractRanges' (resid1, resid2, ss1) (silentRec:rs)                       = (resid1, resid2, ss1):extractRanges' (resid3, resid3, ss3) rs
-  where
-    resid3 = resId silentRec
-    ss3    = ss    silentRec
-
---  do mapM_ (hPutStrLn outHandle . pymolShowRange) $ extractRanges recs
-pymolScript outHandle recs = 
-  do mapM_ (hPutStrLn outHandle . pymolShow) $ extract recs
-     hPutStrLn outHandle epilogue
-
-data Options = Options { optVerbosity :: Int
-                       }
 
 showHelp :: IO ()
 showHelp =
@@ -78,7 +69,7 @@ withFile s f = putStr . unlines . f . lines =<< open s
 processFile :: Options -> String -> IO ()
 processFile opts filename = do
   evts <- processSilentEvents $ BS.pack filename
-  pymolScript stdout evts
+  pymolScript stdout $ extract evts
   return ()
 
 main = do
