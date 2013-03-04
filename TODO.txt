@@ -1,1 +1,2 @@
 Parsing RDC restraints.
+Selecting N best model and saving as a new silent file.
