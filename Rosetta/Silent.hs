@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable, NoMonomorphismRestriction #-}
+-- | This model allows for parsing, and writing ROSETTA's silent files.
 module Rosetta.Silent( SilentEvent(..)
                      , SilentModel(..)
                      , SilentRec  (..)
@@ -32,6 +33,7 @@ import Numeric(showFFloat)
 import Rosetta.SS
 import Rosetta.Util(adj)
 
+-- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec }
                  | ScoreHeader { labels
                                , descLabels :: [BS.ByteString] }
@@ -41,6 +43,7 @@ data SilentEvent = Rec         { unRec        :: SilentRec }
                  | Seq         BS.ByteString
   deriving (Show, Data, Typeable)
 
+-- | Represents a single residue record with torsion angles etc.
 data SilentRec = SilentRec { resId                  :: Int
                            , ss                     :: SSCode -- use SSType
                            , phi, psi, omega        :: Double
@@ -50,6 +53,7 @@ data SilentRec = SilentRec { resId                  :: Int
   deriving (Show, Data, Typeable)
 -- TODO: replace Show/Read with parser and printer for ROSETTA format.
 
+-- | Represents a single model from a ROSETTA silent file.
 data SilentModel = SilentModel { name              :: BS.ByteString
                                , otherDescriptions :: [(BS.ByteString, BS.ByteString)]
                                , scores            :: [(BS.ByteString,
@@ -59,14 +63,20 @@ data SilentModel = SilentModel { name              :: BS.ByteString
                                }
   deriving (Show, Data, Typeable)
 
-
+-- | Generates a SEQUENCE: record string.
 showSequence seq = "SEQUENCE: " `BS.append` seq
 -- TODO: memoize genLabels result somehow
+-- | Generates list of all labels within SCORE: record,
+--   given a list of score labels, and description labels.
 genLabels labels descLabels = labels ++ descLabels ++ ["description"]
 -- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
+-- | Computes number of columns for each score or description, given their respective labels.
 scoreColumns       scores descs      = map (max 8 . BS.length) $ genLabels scores descs
+-- | Given number of columns for each score or description, and lists of scores, descriptions, and a model name,
+--   it it generates a ByteString that shows a SCORE: header, or model summary record.
 showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:"] ++ scores ++ descs ++ [name]
 
+-- | Takes a list of silent models, and writes them to the given file handle.
 writeSilent :: Handle -> [SilentModel] -> IO ()
 writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
                              BS.hPutStrLn handle $ showScoreLine colLens scoreLbls descLbls "description"
@@ -90,6 +100,7 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
     bshow :: (Show a) => a -> BS.ByteString
     bshow = BS.pack . show
 
+-- | Writes a set of SilentMode
 writeSilentFile :: FilePath -> [SilentModel] -> IO ()
 writeSilentFile fname mdls = withFile fname WriteMode $ flip writeSilent mdls
 
@@ -119,15 +130,22 @@ parseSilent fname input = (allErrors, mdls)
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
     parseSilent' (Seq seq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel seq lbls descLbls) r
 
+-- | Parses a silent file and returns lists of error messages and models.
 parseSilentFile :: BS.ByteString -> IO ([BS.ByteString], [SilentModel])
 parseSilentFile fname = do input <- BS.readFile $ BS.unpack fname
                            return $ parseSilent fname input
 
+-- | Parses a silent file, prints out all error messages to stderr,
+--   and returns a list of models
 processSilentFile :: BS.ByteString -> IO [SilentModel]
 processSilentFile fname = do (errs, mdls) <- parseSilentFile fname
                              processErrors fname errs
                              return $! mdls
 
+-- | Takes sequence, both score and description labels from SCORE header,
+--    and a list of `SilentEvent`s  and may produce pair of error message or model,
+--    and a leftover events. It may also return Nothing, if there are no more events.
+--    (To be used with `unfoldr`.)
 --TODO: validate models in buildModel
 buildModel :: BS.ByteString ->
               [BS.ByteString] ->
@@ -135,7 +153,7 @@ buildModel :: BS.ByteString ->
               [SilentEvent] ->
               Maybe (Either BS.ByteString SilentModel
                     ,[SilentEvent])
-buildModel mSeq lbls descLbls []             = Nothing
+buildModel mSeq lbls descLbls []              = Nothing
 buildModel mSeq lbls descLbls (Score s ds:rs) = takeModel rs [] $ mCont mSeq lbls descLbls s ds
   where
 {- mCont :: BS.ByteString   ->
@@ -169,6 +187,8 @@ buildModel mSeq lbls descLbls (Score s ds:rs) = takeModel rs [] $ mCont mSeq lbl
     takeModel    (Rec   r  :rs) aList cont = takeModel rs (r:aList) cont
 buildModel mSeq lbls descLbls (r:_)          = error $ "buildModel with argument starting with " ++ show r
 
+-- | Parses a single line of silent file, and returns either error message,
+--   or a SilentEvent object.
 parseSilentEventLine :: BS.ByteString -> Either BS.ByteString SilentEvent
 parseSilentEventLine line = parse' $ BS.words line
   where
@@ -231,6 +251,7 @@ parseSilentEventLine line = parse' $ BS.words line
 
 -- TODO: parse header
 -- TODO: parse SCORE: entries and join records within each model
+-- | Takes input, and splits it into lists of error messages, and `SilentEvent`s.
 parseSilentEvents :: BS.ByteString -> ([BS.ByteString],
                                        [SilentEvent]  )
 parseSilentEvents = partitionEithers . filter goodOrError . map parseSilentEventLine . BS.lines
@@ -238,22 +259,31 @@ parseSilentEvents = partitionEithers . filter goodOrError . map parseSilentEvent
     goodOrError (Left "") = False
     goodOrError other     = True
 
+-- | Processes all errors that occured while parsing a file of given name,
+--   and prints them.
 processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
                                                 BS.concat ["Error parsing ", fname, ":", s]
 
+-- | Parses a silent file with a given filename, prints errors to stderr, and returns list of events.
 processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` BS.readFile (BS.unpack fname)
                                processErrors fname errs
                                return $! evts
 
+-- | Looks up total score of a given model.
 modelScore = lookup "score" . scores
 
+-- | Value of infinity, used instead of total score, when the score is not present.
 inf = 0/0
 
+-- | Gives total score of a model, or positive infinity if it is not found.
 modelScoreIfAvailable = maybe inf id . modelScore
 
+-- | Compares two models by their total score.
 a `compareTotalScores` b = modelScoreIfAvailable a `compare` modelScoreIfAvailable b
 
+-- | Takes a list, and finds the best model by total score
 bestSilentModel = minimumBy compareTotalScores
 
+-- | Sorts a list of models by total score.
 sortModelsByScore = sortBy compareTotalScores
 

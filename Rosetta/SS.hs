@@ -1,10 +1,11 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Rosetta.SS where
+-- | Module defines secondary structure type used by other modules.
+module Rosetta.SS(SSCode(..)) where
 
 import Data.Typeable
 import Data.Data
 
--- NOTE data structure and instances are duplicated with RosettaFrag.hs
+-- | Secondary structure type.
 data SSCode = Loop   |
               Strand |
               Helix

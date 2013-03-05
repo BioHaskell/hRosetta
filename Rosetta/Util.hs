@@ -1,7 +1,6 @@
+-- | Various utility functions that can be QuickChecked separately
 module Rosetta.Util( splitsAt
                    , adj      ) where
--- ^ Various utility functions that can be QuickChecked separately
-
 import qualified Data.ByteString.Char8 as BS
 
 -- | Splits a list at indices given by another list, yielding a list of lists

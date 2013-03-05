@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, CPP, DeriveDataTypeable #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
+-- | File for reading ROSETTA 3.x fragment format.
 module Rosetta.Fragments where
 
 import Data.Typeable
@@ -88,14 +89,15 @@ parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
     [entry_no_s, pos_s, pdbid, "BBTorsion", rescode, sscode_s,
      phi_s, psi_s, omega_s] = ws
 
-
+-- | Parses a single FRAME of fragment file (which contains set of fragments
+--   that start at a given residue, and end at the other given residue.)
 parseFrame ws = do startPos <- readEither "FRAME starting position" startPos_s
                    endPos   <- readEither "FRAME ending position"   endPos_s
                    return $! TFrag startPos endPos []
   where
     [_frame_string, startPos_s, endPos_s] = ws
 
-
+-- | Reads a line, completing a temporary fragment `TFrag` object.
 readLine' :: [(Int, BS.ByteString)] -> TFrag -> [Either String TFrag]
 readLine' []                    tfrag                                  = addFragment tfrag (-1) [] -- fix -1 as meaning end of file
 readLine' ((lineNo, line):rest) curFrag | "FRAME" `BS.isPrefixOf` line = -- yield fragment and then continue parsing
@@ -112,8 +114,11 @@ readLine' ((lineNo, line):rest) curFrag                                = -- add 
   where
     cleanFrag tfrag = tfrag { tRes = [] }
 
+-- | Enriches error message with a line number.
 mkError lineNo msg = Left $ "Error in line " ++ show lineNo ++ " parsing " ++ msg
 
+-- | Finalizes a temporary fragment `TFrag` object, and adds it to a list of fragments.
+--   Throws error message with line number, if anything goes wrong.
 addFragment tfrag lineNo fragList | null (tRes tfrag)          = fragList
 addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo errMsg                       : fragList
   where
@@ -122,16 +127,24 @@ addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo 
     expected_length = tEndPos tfrag - tStartPos tfrag + 1
 addFragment tfrag lineNo fragList                              = Right (tfrag { tRes = reverse $ tRes tfrag }): fragList
 
+-- | Parses fragments from input given as a ByteString,
+--   and yields list of error messages, and a list of fragments.
 parseFragments input = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
   where
     finalize :: Either String TFrag -> Either String RFrag
     finalize = either (Left . id) (Right . finalizeTFrag)
 
+-- | Converts temporary `TFrag` object to a final `RFrag` object.
 finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)
 
-parseFragmentsFile fname = do (errs, frags) <- parseFragments `fmap` BS.readFile fname
-                              forM errs $ 
-                                \e -> hPrint stderr ("Error in fragments file " ++ fname ++ ": " ++ e)
-                              return $! frags -- TODO: strict spine of the list?
+-- | Read fragments from a given file, and returns two lists: fragments, and errors.
+parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
+
+-- | Reads a fragment set form a file with given filename,
+--   prints all error messages to stderr, and returns a list of fragments.
+processFragmentsFile fname = do (errs, frags) <- parseFragmentsFile fname
+                                forM errs $ 
+                                  \e -> hPrint stderr ("Error in fragments file " ++ fname ++ ": " ++ e)
+                                return $! frags -- TODO: strict spine of the list?
 
 
