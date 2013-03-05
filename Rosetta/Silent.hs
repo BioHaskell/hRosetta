@@ -1,7 +1,23 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable #-}
-module Rosetta.Silent where
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable, NoMonomorphismRestriction #-}
+module Rosetta.Silent( SilentModel(..)
+                     , SilentRec  (..)
+                     , parseSilent
+                     , parseSilentFile
+                     , processSilentFile
 
-import System.IO(stderr)
+                     , writeSilent
+                     , writeSilentFile
+
+                     , parseSilentEvents
+                     , processSilentEvents
+
+                     , modelScore
+                     , modelScoreIfAvailable
+                     , bestSilentModel
+                     , sortModelsByScore
+                     ) where
+
+import System.IO(stderr, withFile, Handle, IOMode(WriteMode))
 import Control.Monad.Instances
 import Control.Monad(when, forM_)
 import Data.List(unfoldr, minimumBy, sortBy)
@@ -10,6 +26,9 @@ import qualified Data.ByteString.Char8 as BS
 import Prelude hiding(seq)
 import Data.Typeable
 import Data.Data
+import qualified Data.Set as Set
+import Data.List(foldl1')
+import Numeric(showFFloat)
 
 import Rosetta.SS
 
@@ -40,6 +59,42 @@ data SilentModel = SilentModel { name              :: BS.ByteString
                                }
   deriving (Show, Data, Typeable)
 
+
+showSequence seq = "SEQUENCE: " `BS.append` seq
+-- TODO: memoize genLabels result somehow
+genLabels labels descLabels = labels ++ descLabels ++ ["description"]
+-- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
+scoreColumns       scores descs      = map (max 8 . BS.length) $ genLabels scores descs
+showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:"] ++ scores ++ descs ++ [name]
+
+adj i s = BS.replicate i ' ' `BS.append` s
+
+writeSilent :: Handle -> [SilentModel] -> IO ()
+writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
+                             BS.hPutStrLn handle $ showScoreLine colLens scoreLbls descLbls "description"
+                             forM_ mdls writeModel
+  where
+    mdl       = head mdls -- assuming all have the same score header
+    colLens   = scoreColumns scoreLbls descLbls
+    scoreLbls = map fst $ scores            mdl
+    descLbls  = map fst $ otherDescriptions mdl
+    writeModel :: SilentModel -> IO ()
+    writeModel mdl = do BS.hPutStrLn handle $ showScoreLine colLens (map (showScoreCol . snd) $ scores            mdl)
+                                                                    (map snd                  $ otherDescriptions mdl)
+                                                                    (name mdl)
+                        forM_ (residues mdl) $ BS.hPutStrLn handle . showSilentRecord (name mdl)
+    showScoreCol x = BS.pack $ showFFloat (Just 2) x ""
+    showSilentRecord :: BS.ByteString -> SilentRec -> BS.ByteString
+    showSilentRecord name rec = BS.intercalate " " $ [adj 4 $ bshow $ resId $ rec, bshow $ ss $ rec] ++ scoreStrings ++ [name]
+      where
+        scoreStrings = map (showCoordCol . (flip ($) rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
+    showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
+    bshow :: (Show a) => a -> BS.ByteString
+    bshow = BS.pack . show
+
+writeSilentFile :: FilePath -> [SilentModel] -> IO ()
+writeSilentFile fname mdls = withFile fname WriteMode $ flip writeSilent mdls
+
 {- FORMAT EXAMPLE:
 SEQUENCE: VLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKGSGSGSGSGSGSGSGSVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKK
 SCORE:      score     env    pair     vdw      hs      ss   sheet      cb  rsigma hb_srbb hb_lrbb      rg      co contact    rama   bk_tot   fa_atr   fa_rep   fa_sol  h2o_sol     hbsc   fa_dun fa_intra  fa_pair fa_plane  fa_prob   fa_h2o   h2o_hb    gsolt     sasa      pc pc_viol omega_sc rlxfilt1 rlxfilt2 description
@@ -66,11 +121,14 @@ parseSilent fname input = (allErrors, mdls)
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
     parseSilent' (Seq seq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel seq lbls descLbls) r
 
-processSilent :: BS.ByteString -> IO [SilentModel]
-processSilent fname = do input <- BS.readFile $ BS.unpack fname
-                         let (errs, mdls) = parseSilent fname input
-                         processErrors fname errs
-                         return $! mdls
+parseSilentFile :: BS.ByteString -> IO ([BS.ByteString], [SilentModel])
+parseSilentFile fname = do input <- BS.readFile $ BS.unpack fname
+                           return $ parseSilent fname input
+
+processSilentFile :: BS.ByteString -> IO [SilentModel]
+processSilentFile fname = do (errs, mdls) <- parseSilentFile fname
+                             processErrors fname errs
+                             return $! mdls
 
 --TODO: validate models in buildModel
 buildModel :: BS.ByteString ->
