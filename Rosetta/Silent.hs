@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable, NoMonomorphismRestriction #-}
-module Rosetta.Silent( SilentModel(..)
+module Rosetta.Silent( SilentEvent(..)
+                     , SilentModel(..)
                      , SilentRec  (..)
                      , parseSilent
                      , parseSilentFile
@@ -26,8 +27,6 @@ import qualified Data.ByteString.Char8 as BS
 import Prelude hiding(seq)
 import Data.Typeable
 import Data.Data
-import qualified Data.Set as Set
-import Data.List(foldl1')
 import Numeric(showFFloat)
 
 import Rosetta.SS
