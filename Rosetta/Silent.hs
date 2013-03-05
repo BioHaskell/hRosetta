@@ -30,6 +30,7 @@ import Data.Data
 import Numeric(showFFloat)
 
 import Rosetta.SS
+import Rosetta.Util(adj)
 
 data SilentEvent = Rec         { unRec        :: SilentRec }
                  | ScoreHeader { labels
@@ -65,8 +66,6 @@ genLabels labels descLabels = labels ++ descLabels ++ ["description"]
 -- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
 scoreColumns       scores descs      = map (max 8 . BS.length) $ genLabels scores descs
 showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:"] ++ scores ++ descs ++ [name]
-
-adj i s = BS.replicate (i - BS.length s) ' ' `BS.append` s
 
 writeSilent :: Handle -> [SilentModel] -> IO ()
 writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl

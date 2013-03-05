@@ -1,11 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Main where
 
+import qualified Data.ByteString.Char8 as BS
+
 import Test.QuickCheck
 import Test.QuickCheck.All
 import Test.QuickCheck.Property
 
-import Rosetta.Util(splitsAt)
+import Rosetta.Util(splitsAt, adj)
 
 --prop_test_example = length (parse exampleString) == 3
 prop_splitsAt_length bs cs = length (splitsAt bs cs) == length bs + 1
@@ -28,5 +30,21 @@ inactive_prop_splitsAt_first  b bs cs = (length xs > 1 && length cs >= head xs)
                                   ==> length (head $ splitsAt xs cs) == head xs
   where
     xs = map abs (b:bs)
+
+mySize = 40 -- unlikely to use adj on so large entries!
+
+newtype UpTo = UpTo { unUpTo :: Int }
+  deriving (Eq, Show)
+
+instance Arbitrary UpTo where
+  arbitrary = UpTo `fmap` choose (1, mySize)
+
+instance Arbitrary BS.ByteString where
+  arbitrary = resize mySize $ BS.pack `fmap` arbitrary
+
+prop_check_adj i s = ((j >= BS.length s) &&
+                      (j < mySize      )) ==> BS.length (adj j s) == j
+  where
+    j = unUpTo i
 
 main = $quickCheckAll
