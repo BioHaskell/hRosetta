@@ -110,7 +110,7 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
     showSilentRecord name rec = BS.intercalate " " $ [adj 4 $ bshow $ resId $ rec, bshow $ ss $ rec, ""] ++ scoreStrings ++ [name]
       where
         scoreStrings = map (showCoordCol . (flip ($) rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
-    showCoordCol x = BS.pack $ showFFloat (Just 3) x ""
+    showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
     bshow :: (Show a) => a -> BS.ByteString
     bshow = BS.pack . show
 
