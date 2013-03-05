@@ -63,6 +63,9 @@ data SilentModel = SilentModel { name              :: BS.ByteString
                                }
   deriving (Show, Data, Typeable)
 
+-- | Default length of column in SCORE: record
+colScoreLength = 7
+
 -- | Generates a SEQUENCE: record string.
 showSequence seq = "SEQUENCE: " `BS.append` seq
 -- TODO: memoize genLabels result somehow
@@ -71,10 +74,21 @@ showSequence seq = "SEQUENCE: " `BS.append` seq
 genLabels labels descLabels = labels ++ descLabels ++ ["description"]
 -- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
 -- | Computes number of columns for each score or description, given their respective labels.
-scoreColumns       scores descs      = map (max 8 . BS.length) $ genLabels scores descs
+scoreColumns       scores descs      = (map (mkLength colScoreLength      ) first_lbls  ++
+                                        map (mkLength (colScoreLength + 1)) second_lbls ++
+                                        map (mkLength (colScoreLength    )) third_lbls     )
+  where
+    lbls = genLabels scores descs
+    -- | Critical column..
+    critCol1 = 16
+    critCol2 = 31 - 16
+    (first_lbls,  rest      ) = splitAt critCol1 lbls
+    (second_lbls, third_lbls) = splitAt critCol2 lbls
+    mkLength i s = max i $ BS.length s
+
 -- | Given number of columns for each score or description, and lists of scores, descriptions, and a model name,
 --   it it generates a ByteString that shows a SCORE: header, or model summary record.
-showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:"] ++ scores ++ descs ++ [name]
+showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:   "] ++ scores ++ descs ++ [name]
 
 -- | Takes a list of silent models, and writes them to the given file handle.
 writeSilent :: Handle -> [SilentModel] -> IO ()
@@ -96,7 +110,7 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
     showSilentRecord name rec = BS.intercalate " " $ [adj 4 $ bshow $ resId $ rec, bshow $ ss $ rec, ""] ++ scoreStrings ++ [name]
       where
         scoreStrings = map (showCoordCol . (flip ($) rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
-    showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
+    showCoordCol x = BS.pack $ showFFloat (Just 3) x ""
     bshow :: (Show a) => a -> BS.ByteString
     bshow = BS.pack . show
 
