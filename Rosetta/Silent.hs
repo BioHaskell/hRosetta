@@ -67,7 +67,7 @@ genLabels labels descLabels = labels ++ descLabels ++ ["description"]
 scoreColumns       scores descs      = map (max 8 . BS.length) $ genLabels scores descs
 showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:"] ++ scores ++ descs ++ [name]
 
-adj i s = BS.replicate i ' ' `BS.append` s
+adj i s = BS.replicate (i - BS.length s) ' ' `BS.append` s
 
 writeSilent :: Handle -> [SilentModel] -> IO ()
 writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
@@ -85,7 +85,7 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
                         forM_ (residues mdl) $ BS.hPutStrLn handle . showSilentRecord (name mdl)
     showScoreCol x = BS.pack $ showFFloat (Just 2) x ""
     showSilentRecord :: BS.ByteString -> SilentRec -> BS.ByteString
-    showSilentRecord name rec = BS.intercalate " " $ [adj 4 $ bshow $ resId $ rec, bshow $ ss $ rec] ++ scoreStrings ++ [name]
+    showSilentRecord name rec = BS.intercalate " " $ [adj 4 $ bshow $ resId $ rec, bshow $ ss $ rec, ""] ++ scoreStrings ++ [name]
       where
         scoreStrings = map (showCoordCol . (flip ($) rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
     showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
