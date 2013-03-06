@@ -20,6 +20,9 @@ import Control.Monad.Instances()
 
 import Rosetta.Util
 
+-- TODO: Use unique strings for atom and residue codes.
+-- Packages: stringtable-atom, monad-atom, simple-atom
+
 -- | Description of ROSETTA 3.x restraint type.
 data Restraint = DistR { at1, at2 :: AtomId ,
                          goal     :: Double }
