@@ -5,8 +5,9 @@ import System.Exit
 import System.Environment
 import System.Console.GetOpt
 import System.IO
+import System.FilePath((<.>))
 import Control.Monad.Instances
-import Control.Monad(when)
+import Control.Monad(when, forM_)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import Prelude
@@ -68,9 +69,8 @@ withFile s f = putStr . unlines . f . lines =<< open s
 
 processFile :: Options -> String -> IO ()
 processFile opts filename = do
-  evts <- processSilentEvents $ BS.pack filename
-  pymolScript stdout $ extract evts
-  return ()
+  mdls <- processSilentFile $ BS.pack filename
+  forM_ mdls $ \mdl -> pymolScriptFile (BS.unpack (name mdl) <.> "pml") mdl
 
 main = do
   args <- getArgs
