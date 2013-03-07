@@ -7,8 +7,9 @@ import Data.Typeable
 import Data.Data
 import System.IO(hPrint, stderr)
 import Control.Monad(when, forM)
-import Control.Monad.Instances
+import Control.Monad.Instances()
 import Control.DeepSeq(NFData(..))
+import Control.Exception(assert)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
@@ -133,10 +134,25 @@ addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo 
     expected_length = tEndPos tfrag - tStartPos tfrag + 1
 addFragment tfrag lineNo fragList                              = Right (tfrag { tRes = reverse $ tRes tfrag }): fragList
 
+groupFragments []     []                                  = [  ]
+groupFragments []     fs                                  = [fs]
+groupFragments (f:fs) []                                  =    groupFragments fs [f]
+groupFragments (f:fs) gs@(g:_) | startPos f == startPos g =    groupFragments fs (f:gs)
+groupFragments (f:fs) gs@(g:_) | otherwise                = gs:groupFragments fs [f]
+
+vectorizeFragmentLists listOfLists = assertions $
+                                       V.replicate len V.empty V.// vectorsWithIndices
+  where
+    len                = maximum indices + 1
+    indices            = map ((+(-1)) . startPos . head) listOfLists
+    vectorsWithIndices = zip indices $ map V.fromList listOfLists
+    assertions         = assert $ len == length listOfLists
+
 -- | Parses fragments from input given as a ByteString,
 --   and yields list of error messages, and a list of fragments.
-parseFragments input = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
+parseFragments input = (errs, vectorizeFragmentLists $ groupFragments frags [])
   where
+    (errs, frags) = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
     finalize :: Either String TFrag -> Either String RFrag
     finalize = either (Left . id) (Right . finalizeTFrag)
 
@@ -150,7 +166,7 @@ parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
 --   prints all error messages to stderr, and returns a list of fragments.
 processFragmentsFile fname = do (errs, frags) <- parseFragmentsFile fname
                                 forM errs $ 
-                                  \e -> hPrint stderr ("Error in fragments file " ++ fname ++ ": " ++ e)
+                                  \e -> hPrint stderr $ "Error in fragments file " ++ fname ++ ": " ++ e
                                 return $! frags -- TODO: strict spine of the list?
 
 
