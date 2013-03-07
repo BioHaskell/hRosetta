@@ -1,34 +1,43 @@
 {-# LANGUAGE OverloadedStrings, CPP, DeriveDataTypeable #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 -- | File for reading ROSETTA 3.x fragment format.
-module Rosetta.Fragments where
+module Rosetta.Fragments( RFrag   (..)
+                        , RFragRes(..)
+                        , RFragSet(..)
+                        , parseFragments
+                        , parseFragmentsFile
+                        , processFragmentsFile
+                        ) where
 
 import Data.Typeable
 import Data.Data
-import System.IO(hPrint, stderr)
-import Control.Monad(when, forM)
+import System.IO              (hPrint, stderr)
+import Control.Monad          (when, forM)
 import Control.Monad.Instances()
-import Control.DeepSeq(NFData(..))
-import Control.Exception(assert)
-import Data.Either(partitionEithers)
+import Control.DeepSeq        (NFData(..))
+import Control.Exception      (assert)
+import Data.Either            (partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
 
 import Rosetta.SS
 
+-- | Set of fragment sites, with each having a vector of fragments picked for the site.
+type RFragSet = V.Vector (V.Vector RFrag)
+
 -- | Record describing single residue within a fragment.
-data FragRes = FragRes { rescode         :: !Char  ,
-                         ss              :: !SSCode,
-                         phi, psi, omega :: !Double
-                       }
+data RFragRes = RFragRes { rescode         :: !Char
+                         , ss              :: !SSCode
+                         , phi, psi, omega :: !Double
+                         }
   deriving (Show, Read, Typeable, Data)
 
-instance NFData FragRes where
+instance NFData RFragRes where
 
 -- | A single fragment.
-data RFrag = RFrag { startPos :: !Int     ,
-                     endPos   :: !Int     ,
-                     res      :: V.Vector FragRes
+data RFrag = RFrag { startPos :: !Int
+                   , endPos   :: !Int
+                   , res      :: V.Vector RFragRes
                    }
   deriving (Show, Read, Typeable)
 
@@ -38,7 +47,7 @@ instance NFData RFrag where
 -- | Temporary fragment holder during parsing
 data TFrag = TFrag { tStartPos :: !Int     ,
                      tEndPos   :: !Int     ,
-                     tRes      :: [FragRes]
+                     tRes      :: [RFragRes]
                    }
   deriving (Show, Read, Typeable, Data)
 
@@ -77,7 +86,7 @@ FRAME <target_seq_startPos> <target_seq_endPos>
 NOTE: check that omega is omega, not chi. Normally omega = +-180+-10?
 -}
 -- | Parses a single residue entry within a fragment.
-parseFragEntry :: [BS.ByteString] -> Either String (Int, Int, FragRes)
+parseFragEntry :: [BS.ByteString] -> Either String (Int, Int, RFragRes)
 parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
                        pos      <- readEither "pos"    pos_s
                        ss       <- readEither "sscode" sscode_s
@@ -86,12 +95,12 @@ parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
                        omega    <- readEither "omega"  omega_s
                        when (BS.length rescode /= 1) $ Left $ "rescode which is not a single character, but '" ++ show rescode ++ "'"
                        return (entry_no, pos,
-                               FragRes { rescode = BS.head rescode,
-                                         ss      = ss     ,
-                                         phi     = phi    ,
-                                         psi     = psi    ,
-                                         omega   = omega 
-                                       })
+                               RFragRes { rescode = BS.head rescode,
+                                          ss      = ss     ,
+                                          phi     = phi    ,
+                                          psi     = psi    ,
+                                          omega   = omega 
+                                        })
   where
     [entry_no_s, pos_s, pdbid, "BBTorsion", rescode, sscode_s,
      phi_s, psi_s, omega_s] = ws
@@ -134,12 +143,15 @@ addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo 
     expected_length = tEndPos tfrag - tStartPos tfrag + 1
 addFragment tfrag lineNo fragList                              = Right (tfrag { tRes = reverse $ tRes tfrag }): fragList
 
+-- | Groups fragments by the site (starting position.)
 groupFragments []     []                                  = [  ]
 groupFragments []     fs                                  = [fs]
 groupFragments (f:fs) []                                  =    groupFragments fs [f]
 groupFragments (f:fs) gs@(g:_) | startPos f == startPos g =    groupFragments fs (f:gs)
 groupFragments (f:fs) gs@(g:_) | otherwise                = gs:groupFragments fs [f]
 
+-- | Creates `RFragSet` from a list of fragments grouped by their site.
+vectorizeFragmentLists ::  [[RFrag]] -> RFragSet
 vectorizeFragmentLists listOfLists = assertions $
                                        V.replicate len V.empty V.// vectorsWithIndices
   where
@@ -150,6 +162,7 @@ vectorizeFragmentLists listOfLists = assertions $
 
 -- | Parses fragments from input given as a ByteString,
 --   and yields list of error messages, and a list of fragments.
+parseFragments :: BS.ByteString -> ([String], RFragSet)
 parseFragments input = (errs, vectorizeFragmentLists $ groupFragments frags [])
   where
     (errs, frags) = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
@@ -160,10 +173,12 @@ parseFragments input = (errs, vectorizeFragmentLists $ groupFragments frags [])
 finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)
 
 -- | Read fragments from a given file, and returns two lists: fragments, and errors.
+parseFragmentsFile :: FilePath -> IO ([String], RFragSet)
 parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
 
 -- | Reads a fragment set form a file with given filename,
---   prints all error messages to stderr, and returns a list of fragments.
+-- prints all error messages to stderr, and returns a list of fragments.
+processFragmentsFile :: FilePath -> IO RFragSet
 processFragmentsFile fname = do (errs, frags) <- parseFragmentsFile fname
                                 forM errs $ 
                                   \e -> hPrint stderr $ "Error in fragments file " ++ fname ++ ": " ++ e
