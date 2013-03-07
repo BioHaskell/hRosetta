@@ -8,6 +8,7 @@ import Data.Data
 import System.IO(hPrint, stderr)
 import Control.Monad(when, forM)
 import Control.Monad.Instances
+import Control.DeepSeq(NFData(..))
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
@@ -21,12 +22,17 @@ data FragRes = FragRes { rescode         :: !Char  ,
                        }
   deriving (Show, Read, Typeable, Data)
 
+instance NFData FragRes where
+
 -- | A single fragment.
 data RFrag = RFrag { startPos :: !Int     ,
                      endPos   :: !Int     ,
                      res      :: V.Vector FragRes
                    }
   deriving (Show, Read, Typeable)
+
+instance NFData RFrag where
+  rnf a = V.foldl' (flip seq) () $ res a
 
 -- | Temporary fragment holder during parsing
 data TFrag = TFrag { tStartPos :: !Int     ,

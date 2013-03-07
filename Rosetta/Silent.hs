@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable, NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -funbox-strict-fields #-}
 -- | This model allows for parsing, and writing ROSETTA's silent files.
 module Rosetta.Silent( SilentEvent(..)
                      , SilentModel(..)
@@ -44,11 +45,11 @@ data SilentEvent = Rec         { unRec        :: SilentRec }
   deriving (Show, Data, Typeable)
 
 -- | Represents a single residue record with torsion angles etc.
-data SilentRec = SilentRec { resId                  :: Int
-                           , ss                     :: SSCode -- use SSType
-                           , phi, psi, omega        :: Double
-                           , caX, caY, caZ          :: Double
-                           , chi1, chi2, chi3, chi4 :: Double
+data SilentRec = SilentRec { resId                  :: !Int
+                           , ss                     :: !SSCode -- use SSType
+                           , phi, psi, omega        :: !Double
+                           , caX, caY, caZ          :: !Double
+                           , chi1, chi2, chi3, chi4 :: !Double
                            }
   deriving (Show, Data, Typeable)
 -- TODO: replace Show/Read with parser and printer for ROSETTA format.

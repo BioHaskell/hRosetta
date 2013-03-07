@@ -1,5 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
-
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, TemplateHaskell #-}
 -- | Module for parsing and processing ROSETTA 3.x restraints.
 module Rosetta.Restraints( Restraint(..)
                          , AtomId   (..)
@@ -14,6 +13,7 @@ import qualified Data.ByteString.Char8 as BS
 import Data.Either
 import Data.Data
 import Data.Typeable
+import Control.DeepSeq
 import Control.Monad( when
                     , forM )
 import Control.Monad.Instances()
@@ -24,10 +24,10 @@ import Rosetta.Util
 -- Packages: stringtable-atom, monad-atom, simple-atom
 
 -- | Description of ROSETTA 3.x restraint type.
-data Restraint = DistR { at1, at2 :: AtomId ,
-                         goal     :: Double }
-               | DiheR { at1, at2, at3, at4 :: AtomId ,
-                         goal               :: Double }
+data Restraint = DistR { at1, at2 :: !AtomId ,
+                         goal     :: !Double }
+               | DiheR { at1, at2, at3, at4 :: !AtomId ,
+                         goal               :: !Double }
   deriving (Read, Eq, Data, Typeable)
 -- TODO: define Show that prints out Rosetta format?
 
@@ -38,13 +38,16 @@ instance Show Restraint where
       showsAt at s = showsPrec n (resId at) $ " " ++ BS.unpack (resName at) ++ " " ++ BS.unpack (atName at) ++ s
 
 -- | Datatype pointing to a given atom in a molecule.
-data AtomId = AtomId { resName :: BS.ByteString, -- may be empty!
-                       atName  :: BS.ByteString,
-                       resId   :: Int
+data AtomId = AtomId { resName :: !BS.ByteString, -- may be empty!
+                       atName  :: !BS.ByteString,
+                       resId   :: !Int
                      }
   deriving (Show, Read, Eq, Data, Typeable)
 -- TODO: define Eq that ignores missing resname
 -- TODO: define nicer Show/Read
+
+instance NFData AtomId    where
+instance NFData Restraint where
 
 -- | Parse constraint function header and parameters
 parseFunc lineNo (funcs:spec) = if funcs == "GAUSSIAN"
