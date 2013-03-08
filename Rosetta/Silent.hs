@@ -27,13 +27,13 @@ import Control.Monad(when, forM_)
 import Data.List(unfoldr, minimumBy, sortBy)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS
-import Prelude hiding(seq)
 import Data.Typeable
 import Data.Data
+import Control.DeepSeq(deepseq, NFData(..))
 import Numeric(showFFloat)
 
 import Rosetta.SS
-import Rosetta.Util(adj)
+import Rosetta.Util(adj, rnfList)
 
 -- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec }
@@ -55,15 +55,23 @@ data SilentRec = SilentRec { resId                  :: !Int
   deriving (Show, Data, Typeable)
 -- TODO: replace Show/Read with parser and printer for ROSETTA format.
 
+instance NFData SilentRec where
+
 -- | Represents a single model from a ROSETTA silent file.
-data SilentModel = SilentModel { name              :: BS.ByteString
+data SilentModel = SilentModel { name              :: !BS.ByteString
                                , otherDescriptions :: [(BS.ByteString, BS.ByteString)]
                                , scores            :: [(BS.ByteString,
                                                         Double       )]
                                , residues          :: [SilentRec]
-                               , fastaSeq          :: BS.ByteString
+                               , fastaSeq          :: !BS.ByteString
                                }
   deriving (Show, Data, Typeable)
+
+-- | Evaluates spine of a list of dublets.
+instance NFData SilentModel where
+  rnf sm = rnfList (otherDescriptions sm) `seq`
+           rnfList (scores            sm) `seq`
+           rnf     (residues          sm)
 
 -- | Default length of column in SCORE: record
 colScoreLength = 7
@@ -82,7 +90,7 @@ emptySilentRec = SilentRec { resId = (-1)
                            , chi4  = 0
                            }
 -- | Generates a SEQUENCE: record string.
-showSequence seq = "SEQUENCE: " `BS.append` seq
+showSequence aSeq = "SEQUENCE: " `BS.append` aSeq
 -- TODO: memoize genLabels result somehow
 -- | Generates list of all labels within SCORE: record,
 --   given a list of score labels, and description labels.
@@ -157,7 +165,7 @@ parseSilent fname input = (allErrors, mdls)
     (errs,  evts) = parseSilentEvents input
     (merrs, mdls) = partitionEithers  $ parseSilent' evts
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
-    parseSilent' (Seq seq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel seq lbls descLbls) r
+    parseSilent' (Seq aSeq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel aSeq lbls descLbls) r
 
 -- | Parses a silent file and returns lists of error messages and models.
 parseSilentFile :: FilePath -> IO ([BS.ByteString], [SilentModel])

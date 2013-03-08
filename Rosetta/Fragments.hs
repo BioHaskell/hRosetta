@@ -23,7 +23,10 @@ import qualified Data.Vector as V
 import Rosetta.SS
 
 -- | Set of fragment sites, with each having a vector of fragments picked for the site.
-type RFragSet = V.Vector (V.Vector RFrag)
+newtype RFragSet = RFragSet { unRFragSet :: V.Vector (V.Vector RFrag) }
+
+instance NFData RFragSet where
+  rnf = V.foldl' (\a v -> V.foldl' (flip seq) a v) () . unRFragSet
 
 -- | Record describing single residue within a fragment.
 data RFragRes = RFragRes { rescode         :: !Char
@@ -113,7 +116,7 @@ parseFrame ws = do startPos <- readEither "FRAME starting position" startPos_s
   where
     [_frame_string, startPos_s, endPos_s] = ws
 
--- | Reads a line, completing a temporary fragment `TFrag` object.
+-- | Reads a line, completing a temporary fragment TFrag object.
 readLine' :: [(Int, BS.ByteString)] -> TFrag -> [Either String TFrag]
 readLine' []                    tfrag                                  = addFragment tfrag (-1) [] -- fix -1 as meaning end of file
 readLine' ((lineNo, line):rest) curFrag | "FRAME" `BS.isPrefixOf` line = -- yield fragment and then continue parsing
@@ -133,7 +136,7 @@ readLine' ((lineNo, line):rest) curFrag                                = -- add 
 -- | Enriches error message with a line number.
 mkError lineNo msg = Left $ "Error in line " ++ show lineNo ++ " parsing " ++ msg
 
--- | Finalizes a temporary fragment `TFrag` object, and adds it to a list of fragments.
+-- | Finalizes a temporary fragment TFrag object, and adds it to a list of fragments.
 --   Throws error message with line number, if anything goes wrong.
 addFragment tfrag lineNo fragList | null (tRes tfrag)          = fragList
 addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo errMsg                       : fragList
@@ -152,7 +155,7 @@ groupFragments (f:fs) gs@(g:_) | otherwise                = gs:groupFragments fs
 
 -- | Creates `RFragSet` from a list of fragments grouped by their site.
 vectorizeFragmentLists ::  [[RFrag]] -> RFragSet
-vectorizeFragmentLists listOfLists = assertions $
+vectorizeFragmentLists listOfLists = assertions $ RFragSet $
                                        V.replicate len V.empty V.// vectorsWithIndices
   where
     len                = maximum indices + 1
@@ -169,7 +172,7 @@ parseFragments input = (errs, vectorizeFragmentLists $ groupFragments frags [])
     finalize :: Either String TFrag -> Either String RFrag
     finalize = either (Left . id) (Right . finalizeTFrag)
 
--- | Converts temporary `TFrag` object to a final `RFrag` object.
+-- | Converts temporary TFrag object to a final `RFrag` object.
 finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)
 
 -- | Read fragments from a given file, and returns two lists: fragments, and errors.
