@@ -76,6 +76,7 @@ instance NFData SilentModel where
 -- | Default length of column in SCORE: record
 colScoreLength = 7
 
+-- | Clean empty `SilentRec`.
 emptySilentRec = SilentRec { resId = (-1)
                            , ss    = Loop
                            , phi   = 0
@@ -92,9 +93,11 @@ emptySilentRec = SilentRec { resId = (-1)
 -- | Generates a SEQUENCE: record string.
 showSequence aSeq = "SEQUENCE: " `BS.append` aSeq
 -- TODO: memoize genLabels result somehow
+
 -- | Generates list of all labels within SCORE: record,
---   given a list of score labels, and description labels.
+-- given a list of score labels, and description labels.
 genLabels labels descLabels = labels ++ descLabels ++ ["description"]
+
 -- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
 -- | Computes number of columns for each score or description, given their respective labels.
 scoreColumns       scores descs      = (map (mkLength colScoreLength      ) first_lbls  ++
@@ -156,8 +159,8 @@ SCORE:    2954.02   44.38  -99.13   11.30    0.00 -101.36   21.74   82.24  -11.7
 -- Maybe available in Control.Arrow? or Control.Applicative?
 
 -- | Parses input filename and contents as a Silent file format input.
---   Filename is first argument, and is prepended to all error messages.
---   Result is a tuple of list of error messages, and `SilentModel`s.
+-- Filename is first argument, and is prepended to all error messages.
+-- Result is a tuple of list of error messages, and `SilentModel`s.
 parseSilent :: BS.ByteString -> BS.ByteString -> ([BS.ByteString], [SilentModel])
 parseSilent fname input = (allErrors, mdls)
   where
@@ -184,25 +187,15 @@ processSilentFile fname = do (errs, mdls) <- parseSilentFile fname
 --    and a leftover events. It may also return Nothing, if there are no more events.
 --    (To be used with `unfoldr`.)
 --TODO: validate models in buildModel
-buildModel :: BS.ByteString ->
+buildModel ::  BS.ByteString  ->
               [BS.ByteString] ->
               [BS.ByteString] ->
-              [SilentEvent] ->
-              Maybe (Either BS.ByteString SilentModel
-                    ,[SilentEvent])
+              [SilentEvent]   ->
+              Maybe ( Either BS.ByteString SilentModel
+                    , [SilentEvent] )
 buildModel mSeq lbls descLbls []              = Nothing
 buildModel mSeq lbls descLbls (Score s ds:rs) = takeModel rs [] $ mCont mSeq lbls descLbls s ds
   where
-{- mCont :: BS.ByteString   ->
-             [BS.ByteString] ->
-             [BS.ByteString] ->
-             [Double]        ->
-             [BS.ByteString] ->
-             BS.ByteString   ->
-             [SilentRec]     ->
-             [SilentEvent]   ->
-             Maybe ( Either BS.ByteString SilentModel
-                   , [SilentEvent] ) -}
     mCont mSeq lbls descLbls scores descs recs rs | length scores == length lbls =
                                                     Just $ (Right $ SilentModel { scores   = zip lbls scores
                                                                                 , residues = recs
