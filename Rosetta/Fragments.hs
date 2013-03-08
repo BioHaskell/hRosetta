@@ -17,6 +17,7 @@ import Control.Monad.Instances()
 import Control.DeepSeq        (NFData(..))
 import Control.Exception      (assert)
 import Data.Either            (partitionEithers)
+import Rosetta.Util(readEither)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
 
@@ -53,15 +54,6 @@ data TFrag = TFrag { tStartPos :: !Int     ,
                      tRes      :: [RFragRes]
                    }
   deriving (Show, Read, Typeable, Data)
-
--- | This is temporary, until readMaybe gets into Prelude!
---   Or replace it with readE that returns a parse error with line no
---   Using Control.Monad.Error, Monad (ErrorT e IdentityT)
-readEither :: (Read a) => String -> BS.ByteString -> Either String a 
-readEither msg s =  case [x | (x , t) <- reads $ BS.unpack s,
-                              ("","") <- lex t              ] of
-                      [x] -> Right x
-                      _   -> Left  msg
 
 {- Example entry:
 FRAME    1   3
