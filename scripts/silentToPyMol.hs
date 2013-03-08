@@ -69,7 +69,7 @@ withFile s f = putStr . unlines . f . lines =<< open s
 
 processFile :: Options -> String -> IO ()
 processFile opts filename = do
-  mdls <- processSilentFile $ BS.pack filename
+  mdls <- processSilentFile filename
   forM_ mdls $ \mdl -> pymolScriptFile (BS.unpack (name mdl) <.> "pml") mdl
 
 main = do

@@ -146,15 +146,15 @@ parseSilent fname input = (allErrors, mdls)
     parseSilent' (Seq seq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel seq lbls descLbls) r
 
 -- | Parses a silent file and returns lists of error messages and models.
-parseSilentFile :: BS.ByteString -> IO ([BS.ByteString], [SilentModel])
-parseSilentFile fname = do input <- BS.readFile $ BS.unpack fname
-                           return $ parseSilent fname input
+parseSilentFile :: FilePath -> IO ([BS.ByteString], [SilentModel])
+parseSilentFile fname = do input <- BS.readFile fname
+                           return $ parseSilent (BS.pack fname) input
 
 -- | Parses a silent file, prints out all error messages to stderr,
 --   and returns a list of models
-processSilentFile :: BS.ByteString -> IO [SilentModel]
+processSilentFile :: FilePath -> IO [SilentModel]
 processSilentFile fname = do (errs, mdls) <- parseSilentFile fname
-                             processErrors fname errs
+                             processErrors (BS.pack fname) errs
                              return $! mdls
 
 -- | Takes sequence, both score and description labels from SCORE header,
