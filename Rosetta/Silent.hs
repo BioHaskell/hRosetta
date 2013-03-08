@@ -4,6 +4,7 @@
 module Rosetta.Silent( SilentEvent(..)
                      , SilentModel(..)
                      , SilentRec  (..)
+                     , emptySilentRec
                      , parseSilent
                      , parseSilentFile
                      , processSilentFile
@@ -67,6 +68,19 @@ data SilentModel = SilentModel { name              :: BS.ByteString
 -- | Default length of column in SCORE: record
 colScoreLength = 7
 
+emptySilentRec = SilentRec { resId = (-1)
+                           , ss    = Loop
+                           , phi   = 0
+                           , psi   = 0
+                           , omega = 0
+                           , caX   = 0
+                           , caY   = 0
+                           , caZ   = 0
+                           , chi1  = 0
+                           , chi2  = 0
+                           , chi3  = 0
+                           , chi4  = 0
+                           }
 -- | Generates a SEQUENCE: record string.
 showSequence seq = "SEQUENCE: " `BS.append` seq
 -- TODO: memoize genLabels result somehow
