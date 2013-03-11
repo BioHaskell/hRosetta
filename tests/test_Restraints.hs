@@ -15,7 +15,7 @@ exampleString = BS.concat ["AtomPair  78 VAL CA    1 VAL CA GAUSSIAN 4.80 1.00\n
 
 test_example_file = do (dat, errs) <- parseRestraintsFile "examples/restraints/short.newcst"
                        assert   (length dat  == 36) $
-                         assert (length errs ==  0) $ 
+                         assert (null errs)         $ 
                            return True
 
 pairs (b:c:cs) = (b,c):pairs (c:cs)

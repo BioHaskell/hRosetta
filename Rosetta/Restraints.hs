@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 -- | Module for parsing and processing ROSETTA 3.x restraints.
 module Rosetta.Restraints( Restraint(..)
                          , AtomId   (..)
@@ -50,18 +50,19 @@ instance NFData AtomId    where
 instance NFData Restraint where
 
 -- | Parse constraint function header and parameters
-parseFunc lineNo (funcs:spec) = if funcs == "GAUSSIAN"
-                                  then do when (length spec <2) $ Left $ "Not enough arguments to GAUSSIAN in line " ++ show lineNo
-                                          parseFloat lineNo $ spec !! 0
-                                  else if funcs == "BOUNDED"
-                                         then do when (length spec <=3) $ Left $ "Not enough arguments to BOUNDED in line " ++ show lineNo
-                                                 parseFloat lineNo $ spec !! 1
-                                         else Left $ "Unknown function name " ++ (show $ BS.unpack $ funcs)
+parseFunc lineNo (funcs:spec) | funcs == "GAUSSIAN" =
+                                  do when (length spec <  2) $ Left $ "Not enough arguments to GAUSSIAN in line " ++ show lineNo
+                                     parseFloat lineNo $ spec !! 0
+parseFunc lineNo (funcs:spec) | funcs == "BOUNDED"  = 
+                                  do when (length spec <= 3) $ Left $ "Not enough arguments to BOUNDED in line "  ++ show lineNo
+                                     parseFloat lineNo $ spec !! 1
+parseFunc lineNo (funcs:spec)                       = 
+                                     Left $ "Unknown function name " ++ show (BS.unpack funcs)
 
 -- | Parse float, or output comprehensible error message with line number.
-parseFloat lineNo floatStr = case reads $ BS.unpack floatStr of
-                        [(f, [])] -> Right f
-                        otherwise -> Left $ "Cannot parse float " ++ show floatStr ++ " in line " ++ show lineNo
+parseFloat lineNo floatStr | [(f, [])] <- reads $ BS.unpack floatStr = Right f
+parseFloat lineNo floatStr                                           =
+                           Left $ "Cannot parse float " ++ show floatStr ++ " in line " ++ show lineNo
 
 -- | Parse an distance restraint (AtomPair)
 parsePair lineNo ws = do when (len <= 8) $ Left $ "Too few ("++ show len ++") words in AtomPair line!"
@@ -75,9 +76,9 @@ parsePair lineNo ws = do when (len <= 8) $ Left $ "Too few ("++ show len ++") wo
 -- | Make an AtId object out of three entries in a line (with residue name.)
 mkAtId3 lineNo [residStr, resname, atName] =
     case reads $ BS.unpack residStr of
-      [(resid, "")] -> Right $ AtomId { resName = resname,
-                                        atName  = atName ,
-                                        resId   = resid  }
+      [(resid, "")] -> Right AtomId { resName = resname,
+                                      atName  = atName ,
+                                      resId   = resid  }
       otherwise     -> Left ("Cannot parse atom id string " ++
                              BS.unpack residStr ++ " in line " ++
                              show lineNo)
@@ -102,10 +103,9 @@ parseRestraint lineNo line = if recType == "AtomPair"
 parseRestraints :: BS.ByteString -> ([Restraint], [String])
 parseRestraints input = (restraints, errs)
   where
-    (errs, restraints) = partitionEithers             .
-                         map (uncurry parseRestraint) .
-                         zip [1..]                    .
-                         BS.lines                     $ input
+    (errs, restraints) = partitionEithers                       .
+                         zipWith (uncurry parseRestraint) [1..] .
+                         BS.lines                               $ input
 
 -- | Open a file with a given name, and yield tuple with list of restraints,
 --   and error messages.
@@ -114,10 +114,10 @@ parseRestraintsFile fname = parseRestraints `fmap` BS.readFile fname
 -- | Read restraints list from a given file, print out all error messages to stderr,
 --   and yield list of restraints.
 processRestraintsFile fname = do (restraints, errors) <- parseRestraintsFile fname
-                                 forM errors $ \msg -> do hPutStrLn stderr $ concat [ "ERROR parsing restraints file "
-                                                                                    , fname
-                                                                                    , ": "
-                                                                                    , msg                              ]
+                                 forM_ errors $ \msg -> hPutStrLn stderr $ concat [ "ERROR parsing restraints file "
+                                                                                  , fname
+                                                                                  , ": "
+                                                                                  , msg                              ]
                                  return restraints
 
 

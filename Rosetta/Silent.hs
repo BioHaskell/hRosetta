@@ -1,9 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, DeriveDataTypeable, NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 -- | This model allows for parsing, and writing ROSETTA's silent files.
-module Rosetta.Silent( SilentEvent(..)
-                     , SilentModel(..)
-                     , SilentRec  (..)
+module Rosetta.Silent( SilentEvent    (..)
+                     , SilentModel    (..)
+                     , SilentRec      (..)
                      , emptySilentRec
                      , parseSilent
                      , parseSilentFile
@@ -36,9 +36,9 @@ import Rosetta.SS
 import Rosetta.Util(adj, rnfList)
 
 -- | Represents a single line of information within a silent file.
-data SilentEvent = Rec         { unRec        :: SilentRec }
+data SilentEvent = Rec         { unRec        :: SilentRec       }
                  | ScoreHeader { labels
-                               , descLabels :: [BS.ByteString] }
+                               , descLabels   :: [BS.ByteString] }
                  | Score       { values       :: [Double       ]
                                , descriptions :: [BS.ByteString]
                                }
@@ -77,7 +77,7 @@ instance NFData SilentModel where
 colScoreLength = 7
 
 -- | Clean empty `SilentRec`.
-emptySilentRec = SilentRec { resId = (-1)
+emptySilentRec = SilentRec { resId = -1
                            , ss    = Loop
                            , phi   = 0
                            , psi   = 0
@@ -100,9 +100,9 @@ genLabels labels descLabels = labels ++ descLabels ++ ["description"]
 
 -- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
 -- | Computes number of columns for each score or description, given their respective labels.
-scoreColumns       scores descs      = (map (mkLength colScoreLength      ) first_lbls  ++
-                                        map (mkLength (colScoreLength + 1)) second_lbls ++
-                                        map (mkLength (colScoreLength    )) third_lbls     )
+scoreColumns       scores descs      = map (mkLength colScoreLength      ) first_lbls  ++
+                                       map (mkLength (colScoreLength + 1)) second_lbls ++
+                                       map (mkLength colScoreLength      ) third_lbls
   where
     lbls = genLabels scores descs
     -- | Critical column..
@@ -133,9 +133,11 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
                         forM_ (residues mdl) $ BS.hPutStrLn handle . showSilentRecord (name mdl)
     showScoreCol x = BS.pack $ showFFloat (Just 2) x ""
     showSilentRecord :: BS.ByteString -> SilentRec -> BS.ByteString
-    showSilentRecord name rec = BS.intercalate " " $ [adj 4 $ bshow $ resId $ rec, bshow $ ss $ rec, ""] ++ scoreStrings ++ [name]
+    showSilentRecord name rec = BS.intercalate " " $ [ adj 4 $ bshow $ resId rec
+                                                     ,         bshow $ ss    rec
+                                                     , ""                        ] ++ scoreStrings ++ [name]
       where
-        scoreStrings = map (showCoordCol . (flip ($) rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
+        scoreStrings = map (showCoordCol . ($ rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
     showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
     bshow :: (Show a) => a -> BS.ByteString
     bshow = BS.pack . show
@@ -197,20 +199,20 @@ buildModel mSeq lbls descLbls []              = Nothing
 buildModel mSeq lbls descLbls (Score s ds:rs) = takeModel rs [] $ mCont mSeq lbls descLbls s ds
   where
     mCont mSeq lbls descLbls scores descs recs rs | length scores == length lbls =
-                                                    Just $ (Right $ SilentModel { scores   = zip lbls scores
-                                                                                , residues = recs
-                                                                                , name     = last descs
-                                                                                , otherDescriptions = zip descLbls $ init descs
-                                                                                , fastaSeq = mSeq
-                                                                                }
-                                                           , rs)
-    mCont mSeq lbls descLbls scores descs rec rs  = Just $ (Left $ BS.concat ["Score list for model "
-                                                                             , last descs
-                                                                             , " is of different length than headers: "
-                                                                             , BS.pack $ show scores
-                                                                             , " vs "
-                                                                             , BS.pack $ show lbls   ]
-                                                           , rs)
+                                                    Just (Right SilentModel { scores            = zip lbls scores
+                                                                            , residues          = recs
+                                                                            , name              = last descs
+                                                                            , otherDescriptions = zip descLbls $ init descs
+                                                                            , fastaSeq          = mSeq
+                                                                            }
+                                                         , rs)
+    mCont mSeq lbls descLbls scores descs rec rs  = Just (Left BS.concat [ "Score list for model "
+                                                                         , last descs
+                                                                         , " is of different length than headers: "
+                                                                         , BS.pack $ show scores
+                                                                         , " vs "
+                                                                         , BS.pack $ show lbls   ]
+                                                         , rs)
     takeModel :: [SilentEvent] -> [SilentRec] -> ([SilentRec] -> [SilentEvent] -> a) -> a
     takeModel []                aList cont = cont (reverse aList) []
     takeModel rs@(Score _ _:_ ) aList cont = cont (reverse aList) rs
@@ -262,9 +264,9 @@ parseSilentEventLine line = parse' $ BS.words line
         takeDescriptions l@["user_tag", "description"] = l
         takeDescriptions (l:ls)                        = takeDescriptions ls
     parseScoreOrHeader cols             = do vals <- sequence prevals'
-                                             return $ Score { values       = vals
-                                                            , descriptions = descs
-                                                            }
+                                             return Score { values       = vals
+                                                          , descriptions = descs
+                                                          }
       where
         prevals :: [Either BS.ByteString Double] = zipWith parseCol cols [1..]
         splittingPoint [Left _, Left _] = 2 -- may also have "user_tag"
@@ -306,7 +308,7 @@ modelScore = lookup "score" . scores
 inf = 0/0
 
 -- | Gives total score of a model, or positive infinity if it is not found.
-modelScoreIfAvailable = maybe inf id . modelScore
+modelScoreIfAvailable = fromMaybe inf . modelScore
 
 -- | Compares two models by their total score.
 a `compareTotalScores` b = modelScoreIfAvailable a `compare` modelScoreIfAvailable b

@@ -12,7 +12,7 @@ module Rosetta.Fragments( RFrag   (..)
 import Data.Typeable
 import Data.Data
 import System.IO              (hPrint, stderr)
-import Control.Monad          (when, forM)
+import Control.Monad          (when, forM_)
 import Control.Monad.Instances()
 import Control.DeepSeq        (NFData(..))
 import Control.Exception      (assert)
@@ -27,7 +27,7 @@ import Rosetta.SS
 newtype RFragSet = RFragSet { unRFragSet :: V.Vector (V.Vector RFrag) }
 
 instance NFData RFragSet where
-  rnf = V.foldl' (\a v -> V.foldl' (flip seq) a v) () . unRFragSet
+  rnf = V.foldl' (V.foldl' $ flip seq) () . unRFragSet
 
 -- | Record describing single residue within a fragment.
 data RFragRes = RFragRes { rescode         :: !Char
@@ -143,7 +143,7 @@ groupFragments []     []                                  = [  ]
 groupFragments []     fs                                  = [fs]
 groupFragments (f:fs) []                                  =    groupFragments fs [f]
 groupFragments (f:fs) gs@(g:_) | startPos f == startPos g =    groupFragments fs (f:gs)
-groupFragments (f:fs) gs@(g:_) | otherwise                = gs:groupFragments fs [f]
+groupFragments (f:fs) gs@(g:_)                            = gs:groupFragments fs [f]
 
 -- | Creates `RFragSet` from a list of fragments grouped by their site.
 vectorizeFragmentLists ::  [[RFrag]] -> RFragSet
@@ -175,7 +175,7 @@ parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
 -- prints all error messages to stderr, and returns a list of fragments.
 processFragmentsFile :: FilePath -> IO RFragSet
 processFragmentsFile fname = do (errs, frags) <- parseFragmentsFile fname
-                                forM errs $ 
+                                forM_ errs $ 
                                   \e -> hPrint stderr $ "Error in fragments file " ++ fname ++ ": " ++ e
                                 return $! frags -- TODO: strict spine of the list?
 

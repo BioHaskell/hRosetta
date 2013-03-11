@@ -14,31 +14,31 @@ data Options = Options  { optVerbosity :: Int
 showHelp :: IO ()
 showHelp =
         do prg <- getProgName
-           hPutStrLn stdout (usageInfo prg options)
+           hPutStrLn stderr (usageInfo prg options)
 
-showVersion = hPutStrLn stdout "Version 0.1"
+showVersion = putStrLn "Version 0.1"
 
-exitAfter function exitCode =
-  \opts -> do function
-              exitWith exitCode
-              return opts
+exitAfter function exitCode opts =
+  do function
+     exitWith exitCode
+     return opts
 
 defaultOptions = Options { optVerbosity = 0
                          }
 
 changeVerbosity :: (Int -> Int) -> Options -> IO Options
-changeVerbosity aChange = \opt -> return opt { optVerbosity = aChange (optVerbosity opt) }
+changeVerbosity aChange opt = return opt { optVerbosity = aChange (optVerbosity opt) }
 
 --options :: Options -> IO Options
 options  :: [OptDescr (Options -> IO Options)]
 options = 
-  [Option ['v'] ["verbose"] (NoArg (changeVerbosity (\a -> a + 1)))
+  [Option "v" ["verbose"] (NoArg (changeVerbosity (+  1) ))
            "Increases log verbosity.",
-   Option ['q'] ["quiet"]   (NoArg (changeVerbosity (\a -> a - 1)))
+   Option "q" ["quiet"]   (NoArg (changeVerbosity (+(-1))))
            "Decreases log verbosity.",
-   Option ['V'] ["version"] (NoArg (exitAfter showVersion ExitSuccess))
+   Option "V" ["version"] (NoArg (exitAfter showVersion ExitSuccess))
            "Print program version.",
-   Option ['h'] ["help"]    (NoArg (exitAfter showHelp    ExitSuccess))
+   Option "h" ["help"]    (NoArg (exitAfter showHelp    ExitSuccess))
            "Prints help"
   ]
 
@@ -56,5 +56,5 @@ main = do
   -- mapM processFile
   foldl (>>) (return ())
              (map (processFile opts) filenames)
-  exitWith ExitSuccess
+  exitSuccess
 
