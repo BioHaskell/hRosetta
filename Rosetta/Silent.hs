@@ -26,6 +26,7 @@ import Control.Monad.Instances
 import Control.Monad(when, forM_)
 import Data.List(unfoldr, minimumBy, sortBy)
 import Data.Either(partitionEithers)
+import Data.Maybe(fromMaybe)
 import qualified Data.ByteString.Char8 as BS
 import Data.Typeable
 import Data.Data
@@ -206,12 +207,12 @@ buildModel mSeq lbls descLbls (Score s ds:rs) = takeModel rs [] $ mCont mSeq lbl
                                                                             , fastaSeq          = mSeq
                                                                             }
                                                          , rs)
-    mCont mSeq lbls descLbls scores descs rec rs  = Just (Left BS.concat [ "Score list for model "
-                                                                         , last descs
-                                                                         , " is of different length than headers: "
-                                                                         , BS.pack $ show scores
-                                                                         , " vs "
-                                                                         , BS.pack $ show lbls   ]
+    mCont mSeq lbls descLbls scores descs rec rs  = Just (Left $ BS.concat [ "Score list for model "
+                                                                           , last descs
+                                                                           , " is of different length than headers: "
+                                                                           , BS.pack $ show scores
+                                                                           , " vs "
+                                                                           , BS.pack $ show lbls   ]
                                                          , rs)
     takeModel :: [SilentEvent] -> [SilentRec] -> ([SilentRec] -> [SilentEvent] -> a) -> a
     takeModel []                aList cont = cont (reverse aList) []

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, PatternGuards #-}
 -- | Module for parsing and processing ROSETTA 3.x restraints.
 module Rosetta.Restraints( Restraint(..)
                          , AtomId   (..)
@@ -15,7 +15,7 @@ import Data.Data
 import Data.Typeable
 import Control.DeepSeq
 import Control.Monad( when
-                    , forM )
+                    , forM_ )
 import Control.Monad.Instances()
 
 import Rosetta.Util
@@ -87,14 +87,15 @@ mkAtId3 lineNo [residStr, resname, atName] =
 mkAtId2 lineNo [atName, resnum] = mkAtId3 [resnum, "", atName]
 
 -- | Parse dihedral restraint (not yet implemented.)
-parseDihe lineNo ws = Left "not implemented"
+parseDihe lineNo ws = Left "Dihedral restraints are not yet implemented"
 
 -- | Parse restraint line with a given line number.
 --   Returns either restraint object, or an error message.
 parseRestraint :: Int -> BS.ByteString -> Either String Restraint
-parseRestraint lineNo line = if recType == "AtomPair"
-                               then parsePair lineNo rec
-                               else parseDihe lineNo rec
+parseRestraint lineNo line = case recType of
+                               "AtomPair" -> parsePair lineNo rec
+                               "Dihedral" -> parseDihe lineNo rec
+                               otherwise  -> Left $ "Unknown restraint type" ++ BS.unpack recType
   where
     recType:rec = BS.words line
 
@@ -103,9 +104,9 @@ parseRestraint lineNo line = if recType == "AtomPair"
 parseRestraints :: BS.ByteString -> ([Restraint], [String])
 parseRestraints input = (restraints, errs)
   where
-    (errs, restraints) = partitionEithers                       .
-                         zipWith (uncurry parseRestraint) [1..] .
-                         BS.lines                               $ input
+    (errs, restraints) = partitionEithers             .
+                         zipWith parseRestraint [1..] .
+                         BS.lines                     $ input
 
 -- | Open a file with a given name, and yield tuple with list of restraints,
 --   and error messages.
