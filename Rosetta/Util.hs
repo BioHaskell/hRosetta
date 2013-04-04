@@ -2,6 +2,7 @@
 module Rosetta.Util( splitsAt
                    , adj
                    , rnfList
+                   , rnfListDublets
                    , readEither ) where
 import qualified Data.ByteString.Char8 as BS
 
@@ -26,6 +27,10 @@ splitsAt [] l = [l]
 adj i s = BS.replicate (i - BS.length s) ' ' `BS.append` s
 
 -- | Normal form of spine of list of dublets.
-rnfList []          = ()
-rnfList ((a, b):ls) = a `seq` b `seq` rnfList ls 
+rnfListDublets []          = ()
+rnfListDublets ((a, b):ls) = a `seq` b `seq` rnfListDublets ls 
 
+-- | Normal form of spine of a list.
+rnfList []     = ()
+rnfList (a:ls) = a `seq` rnfList ls
+ 

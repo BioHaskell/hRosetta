@@ -43,7 +43,7 @@ data SilentEvent = Rec         { unRec        :: SilentRec       }
                  | Score       { values       :: [Double       ]
                                , descriptions :: [BS.ByteString]
                                }
-                 | Seq         BS.ByteString
+                 | Seq         { unSeq        :: !BS.ByteString }
   deriving (Show, Data, Typeable)
 
 -- | Represents a single residue record with torsion angles etc.
@@ -182,7 +182,8 @@ parseSilentFile fname = do input <- BS.readFile fname
 --   and returns a list of models
 processSilentFile :: FilePath -> IO [SilentModel]
 processSilentFile fname = do (errs, mdls) <- parseSilentFile fname
-                             processErrors (BS.pack fname) errs
+                             -- Need to evaluate models before errors, otherwise stack overflow happens!
+                             mdls `deepseq` processErrors (BS.pack fname) errs
                              return $! mdls
 
 -- | Takes sequence, both score and description labels from SCORE header,
@@ -248,16 +249,16 @@ parseSilentEventLine line = parse' $ BS.words line
            chi2  :: Double <- parse "chi2"                     chi2Str
            chi3  :: Double <- parse "chi3"                     chi3Str
            chi4  :: Double <- parse "chi4"                     chi4Str
-           return $ Rec $ SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
+           return $! Rec $! SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
     parse' other                      = error $ "Cannot parse:" ++ (BS.unpack . BS.concat) other
     --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
     parse :: (Read a) => BS.ByteString -> BS.ByteString -> Either BS.ByteString a
     parse recName str = case reads $ BS.unpack str of
-                          [(i, [])] -> Right i
-                          _         -> Left $ BS.concat ["Cannot parse ", recName,
-                                                         " ", BS.pack (show str) ]
+                          [(i, [])] -> Right $! i
+                          _         -> Left  $! BS.concat ["Cannot parse ", recName,
+                                                           " ", BS.pack $ show str ]
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
-    parseScoreOrHeader entries@("score":_) = Right $ ScoreHeader lbls descs
+    parseScoreOrHeader entries@("score":_) = Right $! ScoreHeader lbls descs
       where
         descs = takeDescriptions                     entries
         lbls  = take (length entries - length descs) entries
@@ -292,6 +293,26 @@ parseSilentEvents = partitionEithers . filter goodOrError . map parseSilentEvent
     goodOrError (Left "") = False
     goodOrError other     = True
 
+{- Alternative:
+partitionEithers' :: [Either a b] -> ([a], [b])
+partitionEithers' l = (takeLeft l, takeRight l)
+  where
+    takeLeft   (Left  l:ls) = l:takeLeft ls
+    takeLeft   (Right _:ls) = takeLeft ls
+    takeLeft   []           = []
+    takeRight  (Right l:ls) = l:takeRight ls
+    takeRight  (Left  _:ls) = takeRight ls
+    takeRight  []           = []
+-}
+
+{- Problem with stack overflow with normal Data.Either.partitionEithers:
+partitionEithers'' :: [Either a b] -> ([a],[b])
+partitionEithers'' = foldr (either left right) ([],[])
+ where
+  left  a ~(l, r) = (a:l, r)
+  right a ~(l, r) = (l, a:r)
+ -}
+
 -- | Processes all errors that occured while parsing a file of given name,
 --   and prints them.
 processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
@@ -299,8 +320,10 @@ processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
 
 -- | Parses a silent file with a given filename, prints errors to stderr, and returns list of events.
 processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` BS.readFile (BS.unpack fname)
-                               processErrors fname errs
+                               rnfList evts `seq` processErrors fname errs
                                return $! evts
+-- NOTE: Problem with stack overflow with normal Data.Either.partitionEithers
+-- Solved temporarily by deepseq.
 
 -- | Looks up total score of a given model.
 modelScore = lookup "score" . scores
