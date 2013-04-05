@@ -17,7 +17,7 @@ import Control.Monad.Instances()
 import Control.DeepSeq        (NFData(..))
 import Control.Exception      (assert)
 import Data.Either            (partitionEithers)
-import Rosetta.Util(readEither, parse, parseFloat3, parseInt, bshow)
+import Rosetta.Util(parse, parseFloat3, parseInt, bshow)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
 

@@ -4,7 +4,6 @@ module Rosetta.Util( splitsAt
                    , adj
                    , rnfList
                    , rnfListDublets
-                   , readEither
                    , parse
                    , parseInt
                    , parseFloat
@@ -13,15 +12,6 @@ module Rosetta.Util( splitsAt
 
 import qualified Data.ByteString.Char8 as BS
 import Control.Exception(assert)
-
--- | This is temporary, until readMaybe gets into Prelude!
---   Or replace it with readE that returns a parse error with line no
---   Using Control.Monad.Error, Monad (ErrorT e IdentityT)
-readEither :: (Read a) => String -> BS.ByteString -> Either String a 
-readEither msg s =  case [x | (x , t) <- reads $ BS.unpack s,
-                              ("","") <- lex t              ] of
-                      [x] -> Right x
-                      _   -> Left  msg
 
 -- | Splits a list at indices given by another list, yielding a list of lists
 --   Obeys the following law:
