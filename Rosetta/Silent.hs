@@ -24,6 +24,7 @@ module Rosetta.Silent( SilentEvent    (..)
 import System.IO(stderr, withFile, Handle, IOMode(WriteMode))
 import Control.Monad.Instances
 import Control.Monad(when, forM_)
+import Control.Exception(assert)
 import Data.List(unfoldr, minimumBy, sortBy)
 import Data.Either(partitionEithers)
 import Data.Maybe(fromMaybe)
@@ -34,7 +35,7 @@ import Control.DeepSeq(deepseq, NFData(..))
 import Numeric(showFFloat)
 
 import Rosetta.SS
-import Rosetta.Util(adj, rnfList)
+import Rosetta.Util(adj, rnfList, rnfListDublets)
 
 -- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec       }
@@ -70,9 +71,9 @@ data SilentModel = SilentModel { name              :: !BS.ByteString
 
 -- | Evaluates spine of a list of dublets.
 instance NFData SilentModel where
-  rnf sm = rnfList (otherDescriptions sm) `seq`
-           rnfList (scores            sm) `seq`
-           rnf     (residues          sm)
+  rnf sm = rnfListDublets (otherDescriptions sm) `seq`
+           rnfListDublets (scores            sm) `seq`
+           rnf            (residues          sm)
 
 -- | Default length of column in SCORE: record
 colScoreLength = 7
@@ -183,8 +184,8 @@ parseSilentFile fname = do input <- BS.readFile fname
 processSilentFile :: FilePath -> IO [SilentModel]
 processSilentFile fname = do (errs, mdls) <- parseSilentFile fname
                              -- Need to evaluate models before errors, otherwise stack overflow happens!
-                             mdls `deepseq` processErrors (BS.pack fname) errs
-                             return $! mdls
+                             rnfList mdls `seq` processErrors (BS.pack fname) errs
+                             return mdls
 
 -- | Takes sequence, both score and description labels from SCORE header,
 --    and a list of `SilentEvent`s  and may produce pair of error message or model,
@@ -236,27 +237,46 @@ parseSilentEventLine line = parse' $ BS.words line
     parse' [numStr, ssStr,
             phiStr, psiStr,  omegaStr,
             caXStr, caYStr, caZStr,
-            chi1Str, chi2Str, chi3Str, chi4Str, mName] = do
-           i     :: Int    <- parse "residue number"           numStr
-           ss    :: SSCode <- parse "secondary structure code" ssStr
-           phi   :: Double <- parse "phi"                      phiStr
-           psi   :: Double <- parse "psi"                      psiStr
-           omega :: Double <- parse "omega"                    omegaStr
-           caX   :: Double <- parse "C-alpha X coordinate"     caXStr
-           caY   :: Double <- parse "C-alpha Y coordinate"     caYStr
-           caZ   :: Double <- parse "C-alpha Z coordinate"     caZStr
-           chi1  :: Double <- parse "chi1"                     chi1Str
-           chi2  :: Double <- parse "chi2"                     chi2Str
-           chi3  :: Double <- parse "chi3"                     chi3Str
-           chi4  :: Double <- parse "chi4"                     chi4Str
+            chi1Str, chi2Str, chi3Str, chi4Str, name] = do
+           i     :: Int    <- {-# SCC parse_resi  #-} parseInt "residue number"           numStr
+           ss    :: SSCode <- {-# SCC parse_ss    #-} parse "secondary structure code" ssStr
+           phi   :: Double <- {-# SCC parse_phi   #-} parseFloat "phi"                      phiStr
+           psi   :: Double <- {-# SCC parse_phi   #-} parseFloat "psi"                      psiStr
+           omega :: Double <- {-# SCC parse_omega #-} parseFloat "omega"                    omegaStr
+           caX   :: Double <- {-# SCC parse_cax   #-} parseFloat "C-alpha X coordinate"     caXStr
+           caY   :: Double <- {-# SCC parse_cay   #-} parseFloat "C-alpha Y coordinate"     caYStr
+           caZ   :: Double <- {-# SCC parse_caz   #-} parseFloat "C-alpha Z coordinate"     caZStr
+           chi1  :: Double <- {-# SCC parse_chi1  #-} parseFloat "chi1"                     chi1Str
+           chi2  :: Double <- {-# SCC parse_chi2  #-} parseFloat "chi2"                     chi2Str
+           chi3  :: Double <- {-# SCC parse_chi3  #-} parseFloat "chi3"                     chi3Str
+           chi4  :: Double <- {-# SCC parse_chi4  #-} parseFloat "chi4"                     chi4Str
            return $! Rec $! SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
     parse' other                      = error $ "Cannot parse:" ++ (BS.unpack . BS.concat) other
     --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
+    -- | Fast parsing routine for floating point numbers with three digits after the dot.
+    -- Approximately reduces parse time by 20x over naive use of ReadS-based parse.
+    -- TODO: move to Rosetta.Util.
+    parseFloat :: BS.ByteString -> BS.ByteString -> Either BS.ByteString Double
+    parseFloat recName str = case BS.readInt str of
+                               Nothing -> errMsg
+                               Just (a, rest) -> assert (BS.head rest == '.') $
+                                 case BS.readInt $ BS.tail rest of
+                                   Nothing      -> errMsg
+                                   Just (b, "") -> assert (expectedDigitsAfterComma == BS.length rest) $
+                                                     Right $! fromIntegral a + fromIntegral b / fromIntegral (10^expectedDigitsAfterComma)
+      where
+        errMsg = reportErr recName str
+        expectedDigitsAfterComma = 3
+    parseInt :: BS.ByteString -> BS.ByteString -> Either BS.ByteString Int
+    parseInt recName str = case BS.readInt str of
+                             Just (i, "") -> Right $! i
+                             Nothing      -> reportErr recName str
     parse :: (Read a) => BS.ByteString -> BS.ByteString -> Either BS.ByteString a
     parse recName str = case reads $ BS.unpack str of
                           [(i, [])] -> Right $! i
-                          _         -> Left  $! BS.concat ["Cannot parse ", recName,
-                                                           " ", BS.pack $ show str ]
+                          _         -> reportErr recName str
+    reportErr recName input = Left $! BS.concat ["Cannot parse ", recName,
+                                                 " ", BS.pack $ show input ]
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
     parseScoreOrHeader entries@("score":_) = Right $! ScoreHeader lbls descs
       where
