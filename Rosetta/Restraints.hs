@@ -61,28 +61,30 @@ instance NFData AtomId    where
 instance NFData Restraint where
 
 -- | Parse constraint function header and parameters
-parseFunc ::  Show a => a -> [BS.ByteString] -> Either [Char] RestraintFunction
+parseFunc :: Int -> [BS.ByteString] -> Either BS.ByteString RestraintFunction
 parseFunc lineNo (funcs:spec) | funcs == "GAUSSIAN" =
-                                  do when (length spec <  2) $ Left $ "Not enough arguments to GAUSSIAN in line " ++ show lineNo
-                                     [avg, dev] <- mapM (\i -> parseFloat lineNo $ spec !! i) [0, 1]
+                                  do when (length spec <  2) $ Left $ "Not enough arguments to GAUSSIAN in line " `BS.append` bshow lineNo
+                                     [avg, dev] <- mapM (\i -> parseFloat' lineNo $ spec !! i) [0, 1]
                                      est <- if length spec == 2
                                               then return avg
-                                              else parseFloat lineNo $ spec !! 2
+                                              else parseFloat' lineNo $ spec !! 2
                                      return $! RGaussian avg dev est
 parseFunc lineNo (funcs:spec) | funcs == "BOUNDED"  = 
-                                  do when (length spec <= 3) $ Left $ "Not enough arguments to BOUNDED in line "  ++ show lineNo
-                                     [hi, lo, stdev] <- mapM (\i -> parseFloat lineNo $ spec !! i) [0..2]
-                                     return $! RBounded { bLoBound = lo, bHiBound = hi, bStDev = stdev }
+                                  do when (length spec <= 3) $ Left $ "Not enough arguments to BOUNDED in line " `BS.append` bshow lineNo
+                                     [hi, lo, stdev] <- mapM (\i -> parseFloat' lineNo $ spec !! i) [0..2]
+                                     return $! RBounded { bLoBound = lo
+                                                        , bHiBound = hi
+                                                        , bStDev   = stdev }
 parseFunc lineNo (funcs:spec)                       = 
-                                     Left $ "Unknown function name " ++ show (BS.unpack funcs)
+                                     Left $ "Unknown function name " `BS.append` funcs
 
 -- | Parse float, or output comprehensible error message with line number.
-parseFloat lineNo floatStr | [(f, [])] <- reads $ BS.unpack floatStr = Right f
-parseFloat lineNo floatStr                                           =
-                           Left $ "Cannot parse float " ++ show floatStr ++ " in line " ++ show lineNo
+parseFloat' lineNo floatStr = parseFloat recName Nothing floatStr
+  where
+    recName = BS.concat ["float ", BS.pack $ show floatStr, " in line ", BS.pack $ show lineNo]
 
 -- | Parse an distance restraint (AtomPair)
-parsePair lineNo ws = do when (len <= 8) $ Left $ "Too few ("++ show len ++") words in AtomPair line!"
+parsePair lineNo ws = do when (len <= 8) $ Left $ BS.concat ["Too few (", bshow len, ") words in AtomPair line!"]
                          [at1, at2] <- mapM (mkAtId3 lineNo) [at1s, at2s]
                          func <- parseFunc lineNo funcs
                          Right $ DistR at1 at2 func
@@ -91,14 +93,11 @@ parsePair lineNo ws = do when (len <= 8) $ Left $ "Too few ("++ show len ++") wo
     [at1s, at2s, funcs] = splitsAt [3, 6] ws
 
 -- | Make an AtId object out of three entries in a line (with residue name.)
-mkAtId3 lineNo [residStr, resname, atName] =
-    case reads $ BS.unpack residStr of
-      [(resid, "")] -> Right AtomId { resName = resname,
-                                      atName  = atName ,
-                                      resId   = resid  }
-      otherwise     -> Left ("Cannot parse atom id string " ++
-                             BS.unpack residStr ++ " in line " ++
-                             show lineNo)
+mkAtId3 lineNo [residStr, resname, atName] = do resid <- parseInt ("atom id string in line " `BS.append` bshow lineNo) residStr
+                                                return $! AtomId { resName = resname
+                                                                 , atName  = atName
+                                                                 , resId   = resid
+                                                                 }
 
 -- | Make an AtId object out of two entries in a line (without residue name.)
 mkAtId2 lineNo [atName, resnum] = mkAtId3 [resnum, "", atName]
@@ -108,17 +107,17 @@ parseDihe lineNo ws = Left "Dihedral restraints are not yet implemented"
 
 -- | Parse restraint line with a given line number.
 --   Returns either restraint object, or an error message.
-parseRestraint :: Int -> BS.ByteString -> Either String Restraint
+parseRestraint :: Int -> BS.ByteString -> Either BS.ByteString Restraint
 parseRestraint lineNo line = case recType of
                                "AtomPair" -> parsePair lineNo rec
                                "Dihedral" -> parseDihe lineNo rec
-                               otherwise  -> Left $ "Unknown restraint type" ++ BS.unpack recType
+                               otherwise  -> Left $ "Unknown restraint type" `BS.append` recType
   where
     recType:rec = BS.words line
 
 -- | Parse a ByteString with a set of restraint, and yield all successfully
 --   parsed restraints and a list of error messages.
-parseRestraints :: BS.ByteString -> ([Restraint], [String])
+parseRestraints :: BS.ByteString -> ([Restraint], [BS.ByteString])
 parseRestraints input = (restraints, errs)
   where
     (errs, restraints) = partitionEithers             .
@@ -135,7 +134,7 @@ processRestraintsFile fname = do (restraints, errors) <- parseRestraintsFile fna
                                  forM_ errors $ \msg -> hPutStrLn stderr $ concat [ "ERROR parsing restraints file "
                                                                                   , fname
                                                                                   , ": "
-                                                                                  , msg                              ]
+                                                                                  , BS.unpack msg                    ]
                                  return restraints
 
 

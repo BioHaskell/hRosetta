@@ -35,7 +35,7 @@ import Control.DeepSeq(deepseq, NFData(..))
 import Numeric(showFFloat)
 
 import Rosetta.SS
-import Rosetta.Util(adj, rnfList, rnfListDublets, parseFloat, parseInt, parse)
+import Rosetta.Util(adj, rnfList, rnfListDublets, parseFloat3, parseInt, parse, bshow)
 
 -- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec       }
@@ -141,8 +141,6 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
       where
         scoreStrings = map (showCoordCol . ($ rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
     showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
-    bshow :: (Show a) => a -> BS.ByteString
-    bshow = BS.pack . show
 
 -- | Writes a set of SilentMode
 writeSilentFile :: FilePath -> [SilentModel] -> IO ()
@@ -253,7 +251,6 @@ parseSilentEventLine line = parse' $ BS.words line
            return $! Rec $! SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
     parse' other                      = error $ "Cannot parse:" ++ (BS.unpack . BS.concat) other
     --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
-    parseFloat3 r = parseFloat r 3
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
     parseScoreOrHeader entries@("score":_) = Right $! ScoreHeader lbls descs
       where

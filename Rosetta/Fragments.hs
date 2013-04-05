@@ -17,7 +17,7 @@ import Control.Monad.Instances()
 import Control.DeepSeq        (NFData(..))
 import Control.Exception      (assert)
 import Data.Either            (partitionEithers)
-import Rosetta.Util(readEither)
+import Rosetta.Util(readEither, parse, parseFloat3, parseInt, bshow)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
 
@@ -81,14 +81,14 @@ FRAME <target_seq_startPos> <target_seq_endPos>
 NOTE: check that omega is omega, not chi. Normally omega = +-180+-10?
 -}
 -- | Parses a single residue entry within a fragment.
-parseFragEntry :: [BS.ByteString] -> Either String (Int, Int, RFragRes)
-parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
-                       pos      <- readEither "pos"    pos_s
-                       ss       <- readEither "sscode" sscode_s
-                       phi      <- readEither "phi"    phi_s
-                       psi      <- readEither "psi"    psi_s
-                       omega    <- readEither "omega"  omega_s
-                       when (BS.length rescode /= 1) $ Left $ "rescode which is not a single character, but '" ++ show rescode ++ "'"
+parseFragEntry :: [BS.ByteString] -> Either BS.ByteString (Int, Int, RFragRes)
+parseFragEntry ws = do entry_no <- parseInt    "entry"  entry_no_s
+                       pos      <- parseInt    "pos"    pos_s
+                       ss       <- parse       "sscode" sscode_s
+                       phi      <- parseFloat3 "phi"    phi_s
+                       psi      <- parseFloat3 "psi"    psi_s
+                       omega    <- parseFloat3 "omega"  omega_s
+                       when (BS.length rescode /= 1) $ Left $! BS.concat ["rescode which is not a single character, but ", bshow rescode]
                        return (entry_no, pos,
                                RFragRes { rescode = BS.head rescode,
                                           ss      = ss     ,
@@ -102,14 +102,14 @@ parseFragEntry ws = do entry_no <- readEither "entry"  entry_no_s
 
 -- | Parses a single FRAME of fragment file (which contains set of fragments
 --   that start at a given residue, and end at the other given residue.)
-parseFrame ws = do startPos <- readEither "FRAME starting position" startPos_s
-                   endPos   <- readEither "FRAME ending position"   endPos_s
+parseFrame ws = do startPos <- parse "FRAME starting position" startPos_s
+                   endPos   <- parse "FRAME ending position"   endPos_s
                    return $! TFrag startPos endPos []
   where
     [_frame_string, startPos_s, endPos_s] = ws
 
 -- | Reads a line, completing a temporary fragment TFrag object.
-readLine' :: [(Int, BS.ByteString)] -> TFrag -> [Either String TFrag]
+readLine' :: [(Int, BS.ByteString)] -> TFrag -> [Either BS.ByteString TFrag]
 readLine' []                    tfrag                                  = addFragment tfrag (-1) [] -- fix -1 as meaning end of file
 readLine' ((lineNo, line):rest) curFrag | "FRAME" `BS.isPrefixOf` line = -- yield fragment and then continue parsing
         case parseFrame $ BS.words line of
@@ -126,7 +126,7 @@ readLine' ((lineNo, line):rest) curFrag                                = -- add 
     cleanFrag tfrag = tfrag { tRes = [] }
 
 -- | Enriches error message with a line number.
-mkError lineNo msg = Left $ "Error in line " ++ show lineNo ++ " parsing " ++ msg
+mkError lineNo msg = Left $ BS.concat ["Error in line ", bshow lineNo, " parsing ", msg]
 
 -- | Finalizes a temporary fragment TFrag object, and adds it to a list of fragments.
 --   Throws error message with line number, if anything goes wrong.
@@ -134,7 +134,7 @@ addFragment tfrag lineNo fragList | null (tRes tfrag)          = fragList
 addFragment tfrag lineNo fragList | fragLen /= expected_length = mkError lineNo errMsg                       : fragList
   where
     fragLen         = length $ tRes tfrag
-    errMsg          = "fragment length is supposed to be " ++ show expected_length ++ " but is " ++ show fragLen ++ "."
+    errMsg          = BS.concat ["fragment length is supposed to be ", bshow expected_length, " but is ", bshow fragLen, "."]
     expected_length = tEndPos tfrag - tStartPos tfrag + 1
 addFragment tfrag lineNo fragList                              = Right (tfrag { tRes = reverse $ tRes tfrag }): fragList
 
@@ -157,18 +157,18 @@ vectorizeFragmentLists listOfLists = assertions $ RFragSet $
 
 -- | Parses fragments from input given as a ByteString,
 --   and yields list of error messages, and a list of fragments.
-parseFragments :: BS.ByteString -> ([String], RFragSet)
+parseFragments :: BS.ByteString -> ([BS.ByteString], RFragSet)
 parseFragments input = (errs, vectorizeFragmentLists $ groupFragments frags [])
   where
     (errs, frags) = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
-    finalize :: Either String TFrag -> Either String RFrag
+    finalize :: Either BS.ByteString TFrag -> Either BS.ByteString RFrag
     finalize = either (Left . id) (Right . finalizeTFrag)
 
 -- | Converts temporary TFrag object to a final `RFrag` object.
 finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)
 
 -- | Read fragments from a given file, and returns two lists: fragments, and errors.
-parseFragmentsFile :: FilePath -> IO ([String], RFragSet)
+parseFragmentsFile :: FilePath -> IO ([BS.ByteString], RFragSet)
 parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
 
 -- | Reads a fragment set form a file with given filename,
@@ -176,7 +176,7 @@ parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
 processFragmentsFile :: FilePath -> IO RFragSet
 processFragmentsFile fname = do (errs, frags) <- parseFragmentsFile fname
                                 forM_ errs $ 
-                                  \e -> hPrint stderr $ "Error in fragments file " ++ fname ++ ": " ++ e
+                                  \e -> BS.hPutStrLn stderr $ BS.concat ["Error in fragments file ", BS.pack fname, ": ", e]
                                 return $! frags -- TODO: strict spine of the list?
 
 
