@@ -240,19 +240,20 @@ parseSilentEventLine line = parse' $ BS.words line
             chi1Str, chi2Str, chi3Str, chi4Str, name] = do
            i     :: Int    <- {-# SCC parse_resi  #-} parseInt "residue number"           numStr
            ss    :: SSCode <- {-# SCC parse_ss    #-} parse "secondary structure code" ssStr
-           phi   :: Double <- {-# SCC parse_phi   #-} parseFloat "phi"                      phiStr
-           psi   :: Double <- {-# SCC parse_phi   #-} parseFloat "psi"                      psiStr
-           omega :: Double <- {-# SCC parse_omega #-} parseFloat "omega"                    omegaStr
-           caX   :: Double <- {-# SCC parse_cax   #-} parseFloat "C-alpha X coordinate"     caXStr
-           caY   :: Double <- {-# SCC parse_cay   #-} parseFloat "C-alpha Y coordinate"     caYStr
-           caZ   :: Double <- {-# SCC parse_caz   #-} parseFloat "C-alpha Z coordinate"     caZStr
-           chi1  :: Double <- {-# SCC parse_chi1  #-} parseFloat "chi1"                     chi1Str
-           chi2  :: Double <- {-# SCC parse_chi2  #-} parseFloat "chi2"                     chi2Str
-           chi3  :: Double <- {-# SCC parse_chi3  #-} parseFloat "chi3"                     chi3Str
-           chi4  :: Double <- {-# SCC parse_chi4  #-} parseFloat "chi4"                     chi4Str
+           phi   :: Double <- {-# SCC parse_phi   #-} parseFloat3 "phi"                      phiStr
+           psi   :: Double <- {-# SCC parse_phi   #-} parseFloat3 "psi"                      psiStr
+           omega :: Double <- {-# SCC parse_omega #-} parseFloat3 "omega"                    omegaStr
+           caX   :: Double <- {-# SCC parse_cax   #-} parseFloat3 "C-alpha X coordinate"     caXStr
+           caY   :: Double <- {-# SCC parse_cay   #-} parseFloat3 "C-alpha Y coordinate"     caYStr
+           caZ   :: Double <- {-# SCC parse_caz   #-} parseFloat3 "C-alpha Z coordinate"     caZStr
+           chi1  :: Double <- {-# SCC parse_chi1  #-} parseFloat3 "chi1"                     chi1Str
+           chi2  :: Double <- {-# SCC parse_chi2  #-} parseFloat3 "chi2"                     chi2Str
+           chi3  :: Double <- {-# SCC parse_chi3  #-} parseFloat3 "chi3"                     chi3Str
+           chi4  :: Double <- {-# SCC parse_chi4  #-} parseFloat3 "chi4"                     chi4Str
            return $! Rec $! SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
     parse' other                      = error $ "Cannot parse:" ++ (BS.unpack . BS.concat) other
     --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
+    parseFloat3 r = parseFloat r 3
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
     parseScoreOrHeader entries@("score":_) = Right $! ScoreHeader lbls descs
       where
