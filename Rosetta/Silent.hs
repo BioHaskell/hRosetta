@@ -35,7 +35,7 @@ import Control.DeepSeq(deepseq, NFData(..))
 import Numeric(showFFloat)
 
 import Rosetta.SS
-import Rosetta.Util(adj, rnfList, rnfListDublets)
+import Rosetta.Util(adj, rnfList, rnfListDublets, parseFloat, parseInt, parse)
 
 -- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec       }
@@ -253,30 +253,6 @@ parseSilentEventLine line = parse' $ BS.words line
            return $! Rec $! SilentRec i ss phi psi omega caX caY caZ chi1 chi2 chi3 chi4
     parse' other                      = error $ "Cannot parse:" ++ (BS.unpack . BS.concat) other
     --   1 L     0.000   17.891 -171.655    0.000    0.000    0.000  -81.139    0.000    0.000    0.000 S_0319_8954
-    -- | Fast parsing routine for floating point numbers with three digits after the dot.
-    -- Approximately reduces parse time by 20x over naive use of ReadS-based parse.
-    -- TODO: move to Rosetta.Util.
-    parseFloat :: BS.ByteString -> BS.ByteString -> Either BS.ByteString Double
-    parseFloat recName str = case BS.readInt str of
-                               Nothing -> errMsg
-                               Just (a, rest) -> assert (BS.head rest == '.') $
-                                 case BS.readInt $ BS.tail rest of
-                                   Nothing      -> errMsg
-                                   Just (b, "") -> assert (expectedDigitsAfterComma == BS.length rest) $
-                                                     Right $! fromIntegral a + fromIntegral b / fromIntegral (10^expectedDigitsAfterComma)
-      where
-        errMsg = reportErr recName str
-        expectedDigitsAfterComma = 3
-    parseInt :: BS.ByteString -> BS.ByteString -> Either BS.ByteString Int
-    parseInt recName str = case BS.readInt str of
-                             Just (i, "") -> Right $! i
-                             Nothing      -> reportErr recName str
-    parse :: (Read a) => BS.ByteString -> BS.ByteString -> Either BS.ByteString a
-    parse recName str = case reads $ BS.unpack str of
-                          [(i, [])] -> Right $! i
-                          _         -> reportErr recName str
-    reportErr recName input = Left $! BS.concat ["Cannot parse ", recName,
-                                                 " ", BS.pack $ show input ]
     parseScoreOrHeader :: [BS.ByteString] -> Either BS.ByteString SilentEvent
     parseScoreOrHeader entries@("score":_) = Right $! ScoreHeader lbls descs
       where
