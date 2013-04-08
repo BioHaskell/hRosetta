@@ -20,6 +20,7 @@ import Control.Monad( when
 import Control.Monad.Instances()
 
 import Rosetta.Util
+import qualified Rosetta.Util
 
 -- TODO: Use unique strings for atom and residue codes.
 -- Packages: stringtable-atom, monad-atom, simple-atom
@@ -126,7 +127,7 @@ parseRestraints input = (restraints, errs)
 
 -- | Open a file with a given name, and yield tuple with list of restraints,
 --   and error messages.
-parseRestraintsFile fname = parseRestraints `fmap` BS.readFile fname
+parseRestraintsFile fname = parseRestraints `fmap` Rosetta.Util.readFile fname
 
 -- | Read restraints list from a given file, print out all error messages to stderr,
 --   and yield list of restraints.

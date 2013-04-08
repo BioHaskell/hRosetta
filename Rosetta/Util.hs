@@ -8,10 +8,16 @@ module Rosetta.Util( splitsAt
                    , parseInt
                    , parseFloat
                    , parseFloat3
-                   , bshow          ) where
+                   , bshow      
+                   , decompress
+                   , readFile       ) where
 
-import qualified Data.ByteString.Char8 as BS
-import Control.Exception(assert)
+import           Prelude hiding (readFile)
+import           Data.List(isSuffixOf)
+import qualified Data.ByteString.Char8      as BS
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import qualified Codec.Compression.GZip     as GZip
+import           Control.Exception(assert)
 
 -- | Splits a list at indices given by another list, yielding a list of lists
 --   Obeys the following law:
@@ -80,4 +86,14 @@ reportErr recName input = Left $! BS.concat ["Cannot parse ", recName,
 -- | Shows a type and packs into ByteString.
 bshow :: (Show a) => a -> BS.ByteString
 bshow = BS.pack . show
+
+{-# INLINE decompress #-}
+decompress content = BS.concat $ BSL.toChunks $ GZip.decompress $ BSL.fromChunks [content]
+
+{-# INLINE readFile #-}
+readFile fname = codec `fmap` BS.readFile fname
+  where
+    codec = if ".gz" `isSuffixOf` fname
+              then decompress
+              else id
 

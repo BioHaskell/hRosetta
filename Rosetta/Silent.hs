@@ -21,21 +21,26 @@ module Rosetta.Silent( SilentEvent    (..)
                      , sortModelsByScore
                      ) where
 
-import System.IO(stderr, withFile, Handle, IOMode(WriteMode))
-import Control.Monad.Instances
-import Control.Monad(when, forM_)
-import Control.Exception(assert)
-import Data.List(unfoldr, minimumBy, sortBy)
-import Data.Either(partitionEithers)
-import Data.Maybe(fromMaybe)
+import           Prelude hiding (readFile) 
+import           System.IO(stderr, withFile, Handle, IOMode(WriteMode))
+import           Control.Monad.Instances
+import           Control.Monad(when, forM_)
+import           Control.Exception(assert)
+import           Data.List(unfoldr, minimumBy, sortBy)
+import           Data.Either(partitionEithers)
+import           Data.Maybe(fromMaybe)
 import qualified Data.ByteString.Char8 as BS
-import Data.Typeable
-import Data.Data
-import Control.DeepSeq(deepseq, NFData(..))
-import Numeric(showFFloat)
+import           Data.Typeable
+import           Data.Data
+import           Control.DeepSeq(deepseq, NFData(..))
+import           Numeric(showFFloat)
+
 
 import Rosetta.SS
-import Rosetta.Util(adj, rnfList, rnfListDublets, parseFloat3, parseInt, parse, bshow)
+import Rosetta.Util(adj,
+                    rnfList, rnfListDublets,
+                    parseFloat3, parseInt, parse, bshow,
+                    readFile)
 
 -- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec       }
@@ -174,8 +179,7 @@ parseSilent fname input = (allErrors, mdls)
 
 -- | Parses a silent file and returns lists of error messages and models.
 parseSilentFile :: FilePath -> IO ([BS.ByteString], [SilentModel])
-parseSilentFile fname = do input <- BS.readFile fname
-                           return $ parseSilent (BS.pack fname) input
+parseSilentFile fname = parseSilent (BS.pack fname) `fmap` readFile fname
 
 -- | Parses a silent file, prints out all error messages to stderr,
 --   and returns a list of models
@@ -313,7 +317,7 @@ processErrors fname errs = forM_ errs $ \s -> BS.hPutStrLn stderr $
                                                 BS.concat ["Error parsing ", fname, ":", s]
 
 -- | Parses a silent file with a given filename, prints errors to stderr, and returns list of events.
-processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` BS.readFile (BS.unpack fname)
+processSilentEvents fname = do (errs, evts) <- parseSilentEvents `fmap` readFile (BS.unpack fname)
                                rnfList evts `seq` processErrors fname errs
                                return $! evts
 -- NOTE: Problem with stack overflow with normal Data.Either.partitionEithers

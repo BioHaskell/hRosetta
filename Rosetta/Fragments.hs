@@ -9,17 +9,18 @@ module Rosetta.Fragments( RFrag   (..)
                         , processFragmentsFile
                         ) where
 
-import Data.Typeable
-import Data.Data
-import System.IO              (hPrint, stderr)
-import Control.Monad          (when, forM_)
-import Control.Monad.Instances()
-import Control.DeepSeq        (NFData(..))
-import Control.Exception      (assert)
-import Data.Either            (partitionEithers)
-import Rosetta.Util(parse, parseFloat3, parseInt, bshow)
+import           Data.Typeable
+import           Data.Data
+import           System.IO              (hPrint, stderr)
+import           Control.Monad          (when, forM_)
+import           Control.Monad.Instances()
+import           Control.DeepSeq        (NFData(..))
+import           Control.Exception      (assert)
+import           Data.Either            (partitionEithers)
+import           Rosetta.Util           (parse, parseFloat3, parseInt, bshow)
+import qualified Rosetta.Util          as Util
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.Vector as V
+import qualified Data.Vector           as V
 
 import Rosetta.SS
 
@@ -169,7 +170,7 @@ finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)
 
 -- | Read fragments from a given file, and returns two lists: fragments, and errors.
 parseFragmentsFile :: FilePath -> IO ([BS.ByteString], RFragSet)
-parseFragmentsFile fname = parseFragments `fmap` BS.readFile fname
+parseFragmentsFile fname = parseFragments `fmap` Util.readFile fname
 
 -- | Reads a fragment set form a file with given filename,
 -- prints all error messages to stderr, and returns a list of fragments.
