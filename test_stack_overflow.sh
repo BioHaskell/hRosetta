@@ -1,6 +1,6 @@
 #!/bin/bash
 
-time ghc --make -O3 -rtsopts -prof -fno-prof-count-entries -fforce-recomp scripts/selectBest.hs  && time scripts/selectBest 10 examples/silent/stack_overflow.out stack_overflow_test +RTS -xc -Pa -hc -K1K 
+time ghc --make -O3 -rtsopts -prof -fno-prof-count-entries -fforce-recomp scripts/selectBest.hs  && time scripts/selectBest 10 examples/silent/stack_overflow.out.gz stack_overflow_test +RTS -xc -Pa -hc -K1K 
 #time ghc --make -O3 -rtsopts -prof -fno-prof-count-entries -auto-all -caf-all -fforce-recomp scripts/selectBest.hs  && time scripts/selectBest 10 examples/silent/stack_overflow.out stack_overflow_test +RTS -xc -Pa -hc -K1K 
 #time ghc --make -O3 -rtsopts -prof -auto-all -caf-all -fforce-recomp scripts/selectBest.hs  && time scripts/selectBest 10 examples/silent/stack_overflow.out stack_overflow_test +RTS -xc -Pa -hc -K1K 
 #time ghc --make -O1 -rtsopts -prof -auto-all -caf-all -fforce-recomp scripts/selectBest.hs  && time scripts/selectBest 10 examples/silent/stack_overflow.out stack_overflow_test +RTS -xc -Pa -hc -K1K 
