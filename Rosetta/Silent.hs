@@ -9,6 +9,7 @@ module Rosetta.Silent( SilentEvent    (..)
                      , parseSilentFile
                      , processSilentFile
 
+                     , makeScoreShower
                      , writeSilent
                      , writeSilentFile
 
@@ -127,22 +128,32 @@ scoreColumns       scores descs      = map (mkLength colScoreLength      ) first
 showScoreLine :: [Int]-> [BS.ByteString]-> [BS.ByteString]-> BS.ByteString-> BS.ByteString
 showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:   "] ++ scores ++ descs ++ [name]
 
--- | Takes a list of silent models, and writes them to the given file handle.
-writeSilent :: Handle -> [SilentModel] -> IO ()
-writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
-                             BS.hPutStrLn handle $ showScoreLine colLens scoreLbls descLbls "description"
-                             forM_ mdls writeModel
+-- | Out of a list of SilentModels, it makes a SCORE: header line, and
+-- function for showing each SCORE: record.
+makeScoreShower :: [SilentModel] -> (BS.ByteString, SilentModel -> BS.ByteString)
+makeScoreShower mdls = (showScoreLine colLens scoreLbls descLbls "description",
+                        showScore)
   where
+    showScore mdl = showScoreLine colLens (map (showScoreCol . snd) $ scores            mdl)
+                                          (map snd                  $ otherDescriptions mdl)
+                                          (name                                         mdl)
     mdl       = head mdls -- assuming all have the same score header
     colLens   = scoreColumns scoreLbls descLbls
     scoreLbls = map fst $ scores            mdl
     descLbls  = map fst $ otherDescriptions mdl
-    writeModel :: SilentModel -> IO ()
-    writeModel mdl = do BS.hPutStrLn handle $ showScoreLine colLens (map (showScoreCol . snd) $ scores            mdl)
-                                                                    (map snd                  $ otherDescriptions mdl)
-                                                                    (name mdl)
-                        forM_ (residues mdl) $ BS.hPutStrLn handle . showSilentRecord (name mdl)
     showScoreCol x = BS.pack $ showFFloat (Just 2) x ""
+    
+
+-- | Takes a list of silent models, and writes them to the given file handle.
+writeSilent :: Handle -> [SilentModel] -> IO ()
+writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq $ head mdls
+                             BS.hPutStrLn handle scoreHeader
+                             forM_ mdls writeModel
+  where
+    (scoreHeader, scoreShower) = makeScoreShower mdls
+    writeModel :: SilentModel -> IO ()
+    writeModel mdl = do BS.hPutStrLn handle $ scoreShower mdl 
+                        forM_ (residues mdl) $ BS.hPutStrLn handle . showSilentRecord (name mdl)
     showSilentRecord :: BS.ByteString -> SilentRec -> BS.ByteString
     showSilentRecord name rec = BS.intercalate " " $ [ adj 4 $ bshow $ resId rec
                                                      ,         bshow $ ss    rec
