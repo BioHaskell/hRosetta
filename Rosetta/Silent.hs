@@ -98,15 +98,18 @@ emptySilentRec = SilentRec { resId = -1
                            , chi4  = 0
                            }
 -- | Generates a SEQUENCE: record string.
+showSequence ::  BS.ByteString -> BS.ByteString
 showSequence aSeq = "SEQUENCE: " `BS.append` aSeq
 -- TODO: memoize genLabels result somehow
 
 -- | Generates list of all labels within SCORE: record,
 -- given a list of score labels, and description labels.
+genLabels ::  [BS.ByteString] -> [BS.ByteString] -> [BS.ByteString]
 genLabels labels descLabels = labels ++ descLabels ++ ["description"]
 
 -- TODO: what to do when label sets are inconsistent? (Take set maximum, BUT preserve ordering.)
 -- | Computes number of columns for each score or description, given their respective labels.
+scoreColumns ::  [BS.ByteString] -> [BS.ByteString] -> [Int]
 scoreColumns       scores descs      = map (mkLength colScoreLength      ) first_lbls  ++
                                        map (mkLength (colScoreLength + 1)) second_lbls ++
                                        map (mkLength colScoreLength      ) third_lbls
@@ -121,6 +124,7 @@ scoreColumns       scores descs      = map (mkLength colScoreLength      ) first
 
 -- | Given number of columns for each score or description, and lists of scores, descriptions, and a model name,
 --   it it generates a ByteString that shows a SCORE: header, or model summary record.
+showScoreLine :: [Int]-> [BS.ByteString]-> [BS.ByteString]-> BS.ByteString-> BS.ByteString
 showScoreLine cols scores descs name = BS.intercalate " " . zipWith adj cols $ ["SCORE:   "] ++ scores ++ descs ++ [name]
 
 -- | Takes a list of silent models, and writes them to the given file handle.
@@ -142,9 +146,9 @@ writeSilent handle mdls = do BS.hPutStrLn handle $ showSequence $ fastaSeq mdl
     showSilentRecord :: BS.ByteString -> SilentRec -> BS.ByteString
     showSilentRecord name rec = BS.intercalate " " $ [ adj 4 $ bshow $ resId rec
                                                      ,         bshow $ ss    rec
-                                                     , ""                        ] ++ scoreStrings ++ [name]
+                                                     , ""                        ] ++ coordStrings ++ [name]
       where
-        scoreStrings = map (showCoordCol . ($ rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
+        coordStrings = map (showCoordCol . ($ rec)) [phi, psi, omega, caX, caY, caZ, chi1, chi2, chi3, chi4]
     showCoordCol x = adj 8 $ BS.pack $ showFFloat (Just 3) x ""
 
 -- | Writes a set of SilentMode
@@ -176,6 +180,10 @@ parseSilent fname input = (allErrors, mdls)
     (merrs, mdls) = partitionEithers  $ parseSilent' evts
     parseSilent' :: [SilentEvent] -> [Either BS.ByteString SilentModel]
     parseSilent' (Seq aSeq:ScoreHeader lbls descLbls:r) = unfoldr (buildModel aSeq lbls descLbls) r
+    -- unrecoverable errors:
+    parseSilent' (       a:                        b:r) = [Left $ BS.concat ["First two records of the silent file cannot be parsed as Seq _:ScoreHeader _, but: ",
+                                                                            bshow a, ":", bshow b]]
+    parseSilent' r                                      = [Left $ BS.concat ["Silent file events end early: ", bshow r]]
 
 -- | Parses a silent file and returns lists of error messages and models.
 parseSilentFile :: FilePath -> IO ([BS.ByteString], [SilentModel])
