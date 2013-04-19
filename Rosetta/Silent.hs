@@ -41,7 +41,7 @@ import Rosetta.SS
 import Rosetta.Util(adj,
                     rnfList, rnfListDublets,
                     parseFloat3, parseInt, parse, bshow,
-                    readFile)
+                    readFile, writeFile)
 
 -- | Represents a single line of information within a silent file.
 data SilentEvent = Rec         { unRec        :: SilentRec       }

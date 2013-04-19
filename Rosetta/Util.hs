@@ -9,10 +9,10 @@ module Rosetta.Util( splitsAt
                    , parseFloat
                    , parseFloat3
                    , bshow      
-                   , decompress
-                   , readFile       ) where
+                   , readFile
+                   , writeFile      ) where
 
-import           Prelude hiding (readFile)
+import           Prelude hiding (readFile, writeFile)
 import           Data.List(isSuffixOf)
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
@@ -90,10 +90,29 @@ bshow = BS.pack . show
 {-# INLINE decompress #-}
 decompress content = BS.concat $ BSL.toChunks $ GZip.decompress $ BSL.fromChunks [content]
 
+{-# INLINE compress #-}
+compress content = BS.concat $ BSL.toChunks $ GZip.compress $ BSL.fromChunks [content]
+
 {-# INLINE readFile #-}
+-- | Reads file and applies decoding routine, if input is compressed.
+readFile :: String -> IO BS.ByteString
 readFile fname = codec `fmap` BS.readFile fname
   where
-    codec = if ".gz" `isSuffixOf` fname
-              then decompress
-              else id
+    codec = fst $ getCodec fname
+
+-- | Type of coders/decoders.
+type Codec = BS.ByteString -> BS.ByteString
+
+-- | Function that looks at filename suffix to select coding/decoding
+-- routine applied after reading file.
+--
+-- Useful for automatic recognition of compressed input/output by filename.
+getCodec :: String -> (Codec, Codec)
+getCodec fname = if ".gz" `isSuffixOf` fname
+                   then (decompress, compress)
+                   else (id, id)
+
+-- | Writes a file, possibly compressed, if so indicated by suffix.
+writeFile :: String -> BS.ByteString -> IO ()
+writeFile fname content = BS.writeFile fname $ snd (getCodec fname) $ content
 
