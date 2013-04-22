@@ -1,0 +1,3 @@
+tags:
+	hothasktags Rosetta/*.hs
+
