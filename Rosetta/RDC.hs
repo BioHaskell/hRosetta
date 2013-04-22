@@ -4,14 +4,25 @@
 module Rosetta.RDC where
 
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.Vector as V
+import qualified Data.Vector           as V
+import qualified Data.Vector.Generic   as VG
+import qualified Data.Vector.Unboxed
+import qualified Data.Vector.Unboxed.Base as VUB
 import System.IO(stderr)
 import Control.Monad(when)
 import Data.List(intercalate, sort)
 import Numeric(showFFloat)
 
+import Statistics.Sample.KernelDensity
+
 import Rosetta.Restraints(AtomId(..))
 import Rosetta.Util
+
+-- | A single RDC restraint.
+data RDCRestraint = RDCR { at1, at2           :: !AtomId
+                         , rdcValue           :: !Double
+                         }
+-- TODO: implement proper Show
 
 -- | Set of RDC restraints.
 newtype RDCSet = RDCSet { unRDCSet :: V.Vector RDCRestraint }
@@ -19,12 +30,6 @@ newtype RDCSet = RDCSet { unRDCSet :: V.Vector RDCRestraint }
 instance Show RDCSet
   where
     show = intercalate "\n" . map show . V.toList . unRDCSet
-
--- | A single RDC restraint.
-data RDCRestraint = RDCR { at1, at2           :: !AtomId
-                         , rdcValue           :: !Double
-                         }
--- TODO: implement proper Show
 
 instance Show RDCRestraint where
   showsPrec _ r = ("RDC "++) . shows (at1 r) . (' ':) . shows (at2 r) . (' ':) . showFFloat (Just 2) (rdcValue r)
@@ -81,11 +86,14 @@ parseRDCRestraintsFile fname = do rdcEvts <- parseRDCRestraints `fmap` BS.readFi
     pack   x   = return [x]
 
 rdcParameters :: RDCSet -> (Double, Double)
-rdcParameters rdcSet = (d_a, d_r)
+rdcParameters rdcSet = (d_a, d_r) -- (d_a, d_r)
   where
     -- Computing 5 minimal and 5 maximal elements
     aList :: [Double]
     aList = sort $ map rdcValue $ V.toList $ unRDCSet rdcSet
+    (kdeMesh, kdeValues) = Statistics.Sample.KernelDensity.kde 100 $ VG.convert $ V.map rdcValue $ unRDCSet rdcSet 
+    rdc_mode :: Double
+    rdc_mode = kdeMesh VG.! VG.maxIndex kdeValues
     numExtremal = 5
     minimal = take 5                                aList
     maximal = drop (V.length (unRDCSet rdcSet) - 5) aList
@@ -95,5 +103,23 @@ rdcParameters rdcSet = (d_a, d_r)
     rdc_max = avg maximal
     -- Computing D_a
     d_a = rdc_max/2.0
-    d_r = (-1.5)*((d_a*d_a)+rdc_min*d_a)
+    d_r = (rdc_min - rdc_mode)/(-3)
+
+{-
+http://cwp.embo.org/wpc09-07/lecture/zweckstetterRDC.pdf
+
+-- Maximum
+Dzz = 2*Da
+
+-- Minimum
+Dyy = –Da (1 + 1.5*R)
+
+-- Mode
+Dxx = -Da (1 - 1.5*R)
+To be computed by nonlinear minimization from histogram of the ensemble?
+R= Dr/Da
+
+Note: Dyy - Dxx=-Da (1-1+1.5R+1.5R) = -Da(0+3*R) = -Da * 3 * R = -3*Dr
+Dr = (Dyy - Dxx)/(-3)
+ -}
 
