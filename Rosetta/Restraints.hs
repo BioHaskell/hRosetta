@@ -54,11 +54,17 @@ data AtomId = AtomId { resName :: !BS.ByteString, -- may be empty!
                        atName  :: !BS.ByteString,
                        resId   :: !Int
                      }
-  deriving (Show, Read, Eq, Data, Typeable)
+  deriving (Read, Eq, Data, Typeable)
 -- TODO: define Eq that ignores missing resname
 -- TODO: define nicer Show/Read
 
+instance Show AtomId where
+  showsPrec _ a = ((++) $ BS.unpack $ resName a) .
+                  shows              (resId   a) .
+                  ((++) $ BS.unpack $ atName  a)
+
 instance NFData AtomId    where
+
 instance NFData Restraint where
 
 -- | Parse constraint function header and parameters
