@@ -7,7 +7,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Vector as V
 import System.IO(stderr)
 import Control.Monad(when)
-import Data.List(intercalate)
+import Data.List(intercalate, sort)
 import Numeric(showFFloat)
 
 import Rosetta.Restraints(AtomId(..))
@@ -79,4 +79,21 @@ parseRDCRestraintsFile fname = do rdcEvts <- parseRDCRestraints `fmap` BS.readFi
     report msg = do BS.hPutStrLn stderr msg
                     return []
     pack   x   = return [x]
+
+rdcParameters :: RDCSet -> (Double, Double)
+rdcParameters rdcSet = (d_a, d_r)
+  where
+    -- Computing 5 minimal and 5 maximal elements
+    aList :: [Double]
+    aList = sort $ map rdcValue $ V.toList $ unRDCSet rdcSet
+    numExtremal = 5
+    minimal = take 5                                aList
+    maximal = drop (V.length (unRDCSet rdcSet) - 5) aList
+    -- Computing minimum and maximum RDC estimate
+    avg l = sum l / fromIntegral (length l)
+    rdc_min = avg minimal
+    rdc_max = avg maximal
+    -- Computing D_a
+    d_a = rdc_max/2.0
+    d_r = (-1.5)*((d_a*d_a)+rdc_min*d_a)
 
