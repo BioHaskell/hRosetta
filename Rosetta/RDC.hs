@@ -10,6 +10,7 @@ import qualified Data.Vector.Unboxed
 import qualified Data.Vector.Unboxed.Base as VUB
 import System.IO(stderr)
 import Control.Monad(when)
+import Control.Arrow((***))
 import Data.List(intercalate, sort)
 import Numeric(showFFloat)
 
@@ -85,20 +86,47 @@ parseRDCRestraintsFile fname = do rdcEvts <- parseRDCRestraints `fmap` BS.readFi
                     return []
     pack   x   = return [x]
 
-rdcParameters :: RDCSet -> (Double, Double)
-rdcParameters rdcSet = (d_a, d_r) -- (d_a, d_r)
+showKDE = foldr ($) ""                                  .
+          map mkRow                                     .
+          uncurry zip                                   .
+          (VG.toList *** VG.toList)                     .
+          Statistics.Sample.KernelDensity.kde kdePoints .
+          VG.convert                                    .
+          V.map rdcValue                                .
+          unRDCSet
+  where
+    mkRow (x, y) = shows x . (' ':) . shows y . ('\n':)
+
+kdePoints = 20
+
+data RDCParams = RDCParams { d_a, d_r, r, rdc_min, rdc_max, rdc_mode :: Double }
+
+instance Show RDCParams where
+  show params = intercalate " and " $ map showf [("D_ax",      d_a     )
+                                                ,("D_rh",      d_r     )
+                                                ,("R",         r       )
+                                                ,("min(RDC)",  rdc_min )
+                                                ,("max(RDC)",  rdc_max )
+                                                ,("mode(RDC)", rdc_mode)]
+    where
+      showf :: (String, RDCParams -> Double) -> String
+      showf (label, fun) = label ++ ('=':showFFloat (Just 3)
+                                                    (fun params) "")
+
+rdcParameters :: RDCSet -> RDCParams
+rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode
   where
     -- Computing 5 minimal and 5 maximal elements
     aList :: [Double]
     aList = sort $ map rdcValue $ V.toList $ unRDCSet rdcSet
-    (kdeMesh, kdeValues) = Statistics.Sample.KernelDensity.kde 100 $ VG.convert $ V.map rdcValue $ unRDCSet rdcSet 
+    (kdeMesh, kdeValues) = Statistics.Sample.KernelDensity.kde kdePoints $ VG.convert $ V.map rdcValue $ unRDCSet rdcSet 
     rdc_mode :: Double
     rdc_mode = kdeMesh VG.! VG.maxIndex kdeValues
     numExtremal = 5
     minimal = take 5                                aList
     maximal = drop (V.length (unRDCSet rdcSet) - 5) aList
     -- Computing minimum and maximum RDC estimate
-    avg l = sum l / fromIntegral (length l)
+    avg l   = sum l / fromIntegral (length l)
     rdc_min = avg minimal
     rdc_max = avg maximal
     --rdc_min = minimum aList
