@@ -101,9 +101,12 @@ rdcParameters rdcSet = (d_a, d_r) -- (d_a, d_r)
     avg l = sum l / fromIntegral (length l)
     rdc_min = avg minimal
     rdc_max = avg maximal
+    --rdc_min = minimum aList
+    --rdc_max = maximum aList
     -- Computing D_a
     d_a = rdc_max/2.0
-    d_r = (rdc_min - rdc_mode)/(-3)
+    d_r = (rdc_min - rdc_mode)/(-3)/10
+    r   = d_r/d_a
 
 {-
 http://cwp.embo.org/wpc09-07/lecture/zweckstetterRDC.pdf
