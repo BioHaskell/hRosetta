@@ -99,24 +99,35 @@ showKDE = foldr ($) ""                                  .
 
 kdePoints = 20
 
-data RDCParams = RDCParams { d_a, d_r, r, rdc_min, rdc_max, rdc_mode :: Double }
+data RDCParams = RDCParams { d_a, d_r, r, rdc_min, rdc_max, rdc_mode,
+                             d_a2, r2, trace, d_xx, d_yy, d_zz :: Double }
 
 instance Show RDCParams where
   show params = intercalate " and " $ map showf [("D_ax",      d_a     )
                                                 ,("D_rh",      d_r     )
-                                                ,("R",         r       )
+                                                ,("D_a_2",     d_a2    )
+                                                ,("R1",        r       )
+                                                ,("R2",        r2      )
                                                 ,("min(RDC)",  rdc_min )
                                                 ,("max(RDC)",  rdc_max )
-                                                ,("mode(RDC)", rdc_mode)]
+                                                ,("mode(RDC)", rdc_mode)
+                                                ,("tr(D)",     trace   )
+                                                ,("D_xx",      d_xx    )
+                                                ,("D_yy",      d_yy    )
+                                                ,("D_zz",      d_zz    )
+                                                ]
     where
       showf :: (String, RDCParams -> Double) -> String
       showf (label, fun) = label ++ ('=':showFFloat (Just 3)
                                                     (fun params) "")
 
+-- TODO: split atom pairs into distinct sets, and solve params separately for each set!
+-- Or scale to common base, e.g. max(D_NH)
 rdcParameters :: RDCSet -> RDCParams
-rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode
+rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode d_a2 r2 aSum rdc_mode rdc_min rdc_max
   where
     -- Computing 5 minimal and 5 maximal elements
+    aSum = rdc_min + rdc_max + rdc_mode
     aList :: [Double]
     aList = sort $ map rdcValue $ V.toList $ unRDCSet rdcSet
     (kdeMesh, kdeValues) = Statistics.Sample.KernelDensity.kde kdePoints $ VG.convert $ V.map rdcValue $ unRDCSet rdcSet 
@@ -132,14 +143,17 @@ rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode
     --rdc_min = minimum aList
     --rdc_max = maximum aList
     -- Computing D_a
-    d_a = rdc_max/2.0
-    d_r = (rdc_min - rdc_mode)/(-3)/10
-    r   = d_r/d_a
+    d_a  = (rdc_min + rdc_mode)/(-2)/rdc_max
+    d_a2 = rdc_max/2.0 
+    d_r  = (rdc_min - rdc_mode)/(-3) / rdc_max
+    r    = d_r/d_a
+    r2   = (rdc_min - rdc_mode)/(rdc_min + rdc_mode)/2
 
 {-
 http://cwp.embo.org/wpc09-07/lecture/zweckstetterRDC.pdf
 
--- Maximum
+Tr D = 0 => Dxx + Dyy + Dzz == 0
+-- Maximum (maybe just use as upper bound?)
 Dzz = 2*Da
 
 -- Minimum
@@ -150,7 +164,15 @@ Dxx = -Da (1 - 1.5*R)
 To be computed by nonlinear minimization from histogram of the ensemble?
 R= Dr/Da
 
-Note: Dyy - Dxx=-Da (1-1+1.5R+1.5R) = -Da(0+3*R) = -Da * 3 * R = -3*Dr
+should be
+Dxx + Dyy + Dzz == Tr D == 0
+
+Dyy + Dxx ~= -2Da ~= Dzz
+Dyy - Dxx ~= -3R*Da=-3Dr
+
+(Dyy - Dxx) / (Dyy + Dxx) == R
+
+Note: Dyy - Dxx = -Da (1-1+1.5R+1.5R) = -Da(0+3*R) = -Da * 3 * R = -3*Dr
 Dr = (Dyy - Dxx)/(-3)
  -}
 
