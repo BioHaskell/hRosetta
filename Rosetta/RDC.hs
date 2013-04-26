@@ -86,6 +86,8 @@ parseRDCRestraintsFile fname = do rdcEvts <- parseRDCRestraints `fmap` BS.readFi
                     return []
     pack   x   = return [x]
 
+-- | Shows Kernel Density Estimation of a distribution.
+-- May be used to write it to GNUPlot .dat file.
 showKDE = foldr ($) ""                                  .
           map mkRow                                     .
           uncurry zip                                   .
@@ -97,8 +99,12 @@ showKDE = foldr ($) ""                                  .
   where
     mkRow (x, y) = shows x . (' ':) . shows y . ('\n':)
 
+-- | Number of points in Kernel Density Estimation of RDC distribution.
 kdePoints = 20
 
+-- | Description of parameters of RDC distribution.
+-- Convenience datatype to hold a variety of results returned by
+-- rdcParameters.
 data RDCParams = RDCParams { d_a, d_r, r, rdc_min, rdc_max, rdc_mode,
                              d_a2, r2, trace, d_xx, d_yy, d_zz :: Double }
 
@@ -123,6 +129,8 @@ instance Show RDCParams where
 
 -- TODO: split atom pairs into distinct sets, and solve params separately for each set!
 -- Or scale to common base, e.g. max(D_NH)
+-- | Computes descriptive parameters of RDC distribution.
+-- For now doesn't distinguish atom types.
 rdcParameters :: RDCSet -> RDCParams
 rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode d_a2 r2 aSum rdc_mode rdc_min rdc_max
   where
