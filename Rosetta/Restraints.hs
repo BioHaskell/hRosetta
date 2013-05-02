@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, PatternGuards #-}
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 -- | Module for parsing and processing ROSETTA 3.x restraints.
 module Rosetta.Restraints( Restraint        (..)
                          , RestraintFunction(..)
@@ -40,14 +40,25 @@ data Restraint = DistR { at1, at2 :: !AtomId
 -- TODO: define Show that prints out Rosetta format?
 
 instance Show RestraintFunction where
-  showsPrec n (RGaussian avg dev goal) = ("GAUSSIAN "++) . showsPrec n avg . (' ':) . showsPrec n dev . (' ':) . showsPrec n goal
-  showsPrec n (RBounded  lo  hi  est ) = ("BOUNDED "++)  . showsPrec n lo  . (' ':) . showsPrec n hi  . (' ':) . showsPrec n est
+  showsPrec n (RGaussian avg dev goal) = ("GAUSSIAN "++) .
+                                         showsPrec n avg . (' ':) .
+                                         showsPrec n dev . (' ':) .
+                                         showsPrec n goal
+  showsPrec n (RBounded  lo  hi  est ) = ("BOUNDED " ++) .
+                                         showsPrec n lo  . (' ':) .
+                                         showsPrec n hi  . (' ':) .
+                                         showsPrec n est
 
 instance Show Restraint where
-  showsPrec n (DistR at1 at2 func) = ("AtomPair "++) . showsAt n at1 . (' ':) . showsAt n at2 . showsPrec n func
+  showsPrec n (DistR at1 at2 func) = ("AtomPair "++) .
+                                     showsAt n at1   . (' ':) .
+                                     showsAt n at2   . (' ':) .
+                                     showsPrec n func
 
 showsAt :: Int -> AtomId -> String -> String
-showsAt n at s = showsPrec n (resId at) $ " " ++ BS.unpack (resName at) ++ " " ++ BS.unpack (atName at) ++ s
+showsAt n at s = showsPrec n (resId at) $
+                 " " ++ BS.unpack (resName at) ++
+                 " " ++ BS.unpack (atName  at) ++ s
 
 -- | Datatype pointing to a given atom in a molecule.
 data AtomId = AtomId { resName :: !BS.ByteString, -- may be empty!
@@ -59,9 +70,9 @@ data AtomId = AtomId { resName :: !BS.ByteString, -- may be empty!
 -- TODO: define nicer Show/Read
 
 instance Show AtomId where
-  showsPrec _ a = ((++) $ BS.unpack $ resName a) .
-                  shows              (resId   a) .
-                  ((++) $ BS.unpack $ atName  a)
+  showsPrec _ a = (++) (BS.unpack $ resName a) .
+                  shows            (resId   a) .
+                  (++) (BS.unpack $ atName  a)
 
 instance NFData AtomId    where
 
@@ -70,15 +81,20 @@ instance NFData Restraint where
 -- | Parse constraint function header and parameters
 parseFunc :: Int -> [BS.ByteString] -> Either BS.ByteString RestraintFunction
 parseFunc lineNo (funcs:spec) | funcs == "GAUSSIAN" =
-                                  do when (length spec <  2) $ Left $ "Not enough arguments to GAUSSIAN in line " `BS.append` bshow lineNo
-                                     [avg, dev] <- mapM (\i -> parseFloat' lineNo $ spec !! i) [0, 1]
+                                  do when (length spec <  2) $ Left $
+                                       "Not enough arguments to GAUSSIAN in line "
+                                         `BS.append` bshow lineNo
+                                     [avg, dev] <- mapM
+                                                     (\i -> parseFloat' lineNo $ spec !! i)
+                                                     [0, 1]
                                      est <- if length spec == 2
                                               then return avg
                                               else parseFloat' lineNo $ spec !! 2
                                      return $! RGaussian avg dev est
 parseFunc lineNo (funcs:spec) | funcs == "BOUNDED"  = 
                                   do when (length spec <= 3) $ Left $ "Not enough arguments to BOUNDED in line " `BS.append` bshow lineNo
-                                     [hi, lo, stdev] <- mapM (\i -> parseFloat' lineNo $ spec !! i) [0..2]
+                                     [hi, lo, stdev] <- mapM (parseFloat' lineNo . (spec !!))
+                                                             [0..2]
                                      return $! RBounded { bLoBound = lo
                                                         , bHiBound = hi
                                                         , bStDev   = stdev }
@@ -101,10 +117,10 @@ parsePair lineNo ws = do when (len <= 8) $ Left $ BS.concat ["Too few (", bshow 
 
 -- | Make an AtId object out of three entries in a line (with residue name.)
 mkAtId3 lineNo [residStr, resname, atName] = do resid <- parseInt ("atom id string in line " `BS.append` bshow lineNo) residStr
-                                                return $! AtomId { resName = resname
-                                                                 , atName  = atName
-                                                                 , resId   = resid
-                                                                 }
+                                                return AtomId { resName = resname
+                                                              , atName  = atName
+                                                              , resId   = resid
+                                                              }
 
 -- | Make an AtId object out of two entries in a line (without residue name.)
 mkAtId2 lineNo [atName, resnum] = mkAtId3 [resnum, "", atName]
