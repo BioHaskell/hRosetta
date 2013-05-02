@@ -92,14 +92,16 @@ parseFunc lineNo (funcs:spec) | funcs == "GAUSSIAN" =
                                               else parseFloat' lineNo $ spec !! 2
                                      return $! RGaussian avg dev est
 parseFunc lineNo (funcs:spec) | funcs == "BOUNDED"  = 
-                                  do when (length spec <= 3) $ Left $ "Not enough arguments to BOUNDED in line " `BS.append` bshow lineNo
+                                  do when (length spec <= 3) $ Left $
+                                       "Not enough arguments to BOUNDED in line " `BS.append` bshow lineNo
                                      [hi, lo, stdev] <- mapM (parseFloat' lineNo . (spec !!))
                                                              [0..2]
                                      return RBounded { bLoBound = lo
                                                      , bHiBound = hi
                                                      , bStDev   = stdev }
 parseFunc lineNo (funcs:spec)                       = 
-                                     Left $ "Unknown function name " `BS.append` funcs
+                                     Left $ BS.concat ["Unknown function name ", funcs,
+                                                       " in line ", bshow lineNo]
 
 -- | Parse float, or output comprehensible error message with line number.
 parseFloat' lineNo floatStr = parseFloat recName Nothing floatStr
@@ -107,7 +109,9 @@ parseFloat' lineNo floatStr = parseFloat recName Nothing floatStr
     recName = BS.concat ["float ", BS.pack $ show floatStr, " in line ", BS.pack $ show lineNo]
 
 -- | Parse an distance restraint (AtomPair)
-parsePair lineNo ws = do when (len <= 8) $ Left $ BS.concat ["Too few (", bshow len, ") words in AtomPair line!"]
+parsePair lineNo ws = do when (len <= 8) $ Left $ BS.concat [ "Too few (", bshow len
+                                                            , ") words in AtomPair line "
+                                                            , bshow lineNo ]
                          [at1, at2] <- mapM (mkAtId3 lineNo) [at1s, at2s]
                          func <- parseFunc lineNo funcs
                          Right $ DistR at1 at2 func
@@ -126,7 +130,7 @@ mkAtId3 lineNo [residStr, resname, atName] = do resid <- parseInt ("atom id stri
 mkAtId2 lineNo [atName, resnum] = mkAtId3 [resnum, "", atName]
 
 -- | Parse dihedral restraint (not yet implemented.)
-parseDihe lineNo ws = Left "Dihedral restraints are not yet implemented"
+parseDihe lineNo ws = Left $ "Dihedral restraints are not yet implemented in line " `BS.append` bshow lineNo
 
 -- | Parse restraint line with a given line number.
 --   Returns either restraint object, or an error message.
@@ -134,7 +138,8 @@ parseRestraint :: Int -> BS.ByteString -> Either BS.ByteString Restraint
 parseRestraint lineNo line = case recType of
                                "AtomPair" -> parsePair lineNo rec
                                "Dihedral" -> parseDihe lineNo rec
-                               otherwise  -> Left $ "Unknown restraint type" `BS.append` recType
+                               otherwise  -> Left $ BS.concat ["Unknown restraint type", recType
+                                                              ," in line ", bshow lineNo]
   where
     recType:rec = BS.words line
 
