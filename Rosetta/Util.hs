@@ -18,6 +18,7 @@ import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Codec.Compression.GZip     as GZip
 import           Control.Exception(assert)
+import           Data.Maybe(fromMaybe)
 
 -- | Splits a list at indices given by another list, yielding a list of lists
 --   Obeys the following law:
@@ -56,15 +57,18 @@ parseFloat recName expectedDigitsAfterComma str =
                                      fromIntegral (10^denominator rest)
   where
     errMsg = reportErr recName str
-    assertion rest = fromMaybe id (assert $ d == BS.length rest)
-{- case expectedDigitsAfterComma of
+    -- | Checks number of digits after comma, if got this information.
+    -- Useful to make sure that it is optimized away. :-)
+    assertion :: BS.ByteString -> a -> a
+    assertion rest = case expectedDigitsAfterComma of
                        Just d  -> assert $ d == BS.length rest
                        Nothing -> id -- check nothing... -}
-    denominator rest = fromMaybe (BS.length rest) expectedDigitsAfterComma
-{-                       case expectedDigitsAfterComma of
+    -- | Number of digits in the denominator.
+    denominator :: BS.ByteString -> Int
+    denominator rest = --fromMaybe (BS.length rest) id expectedDigitsAfterComma
+                       case expectedDigitsAfterComma of
                          Just d  -> d -- optimized away...
                          Nothing -> BS.length rest -- compute hard way
- -}
 
 {-# INLINE parseFloat3 #-}
 -- | Fast parsing of conventional ROSETTA floats with 3 digits after the dot.

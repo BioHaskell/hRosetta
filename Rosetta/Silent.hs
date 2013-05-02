@@ -259,8 +259,8 @@ parseSilentEventLine line = parse' $ BS.words line
             phiStr, psiStr,  omegaStr,
             caXStr, caYStr, caZStr,
             chi1Str, chi2Str, chi3Str, chi4Str, name] = do
-           i     :: Int    <- {-# SCC parse_resi  #-} parseInt "residue number"           numStr
-           ss    :: SSCode <- {-# SCC parse_ss    #-} parse "secondary structure code" ssStr
+           i     :: Int    <- {-# SCC parse_resi  #-} parseInt    "residue number"           numStr
+           ss    :: SSCode <- {-# SCC parse_ss    #-} parse       "secondary structure code" ssStr
            phi   :: Double <- {-# SCC parse_phi   #-} parseFloat3 "phi"                      phiStr
            psi   :: Double <- {-# SCC parse_phi   #-} parseFloat3 "psi"                      psiStr
            omega :: Double <- {-# SCC parse_omega #-} parseFloat3 "omega"                    omegaStr

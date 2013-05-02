@@ -53,7 +53,7 @@ parseRDCRestraint lineNo line = do when (length ws /= 6) $ Left $ BS.concat ["Ex
   where
     [lbl, resi1str, at1, resi2str, at2, val] = ws
     withLineNo bs = BS.concat [bs, "in line #", bshow lineNo]
-    ws = BS.words line
+    ws            = BS.words  line
 
 -- | Parses RDC restraint input from BS.ByteString, and returns list of
 -- restraints and errors.
