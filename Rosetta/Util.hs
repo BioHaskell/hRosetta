@@ -35,29 +35,36 @@ rnfListDublets []          = ()
 rnfListDublets ((a, b):ls) = a `seq` b `seq` rnfListDublets ls 
 
 -- | Normal form of spine of a list.
-rnfList []     = ()
-rnfList (a:ls) = a `seq` rnfList ls
+rnfList = foldr seq () -- or foldr'
+--rnfList []     = ()
+--rnfList (a:ls) = a `seq` rnfList ls
 
 {-# INLINE parseFloat #-} 
 -- | Fast parsing routine for floating point numbers with given number digits after the dot.
 -- Approximately reduces parse time by 20x over naive use of ReadS-based parse.
 -- (Giving a number of digits may help compiler to optimize some things away - untested!)
 parseFloat :: BS.ByteString -> Maybe Int -> BS.ByteString -> Either BS.ByteString Double
-parseFloat recName expectedDigitsAfterComma str = case BS.readInt str of
-                                                    Nothing -> errMsg
-                                                    Just (a, rest) -> assert (BS.head rest == '.') $
-                                                      case BS.readInt $ BS.tail rest of
-                                                        Nothing      -> errMsg
-                                                        Just (b, "") -> assertion rest $
-                                                                          Right $! fromIntegral a + fromIntegral b / fromIntegral (10^denominator rest)
+parseFloat recName expectedDigitsAfterComma str =
+    case BS.readInt str of
+      Nothing -> errMsg
+      Just (a, rest) -> assert (BS.head rest == '.') $
+        case BS.readInt $ BS.tail rest of
+          Nothing      -> errMsg
+          Just (b, "") -> assertion rest $
+                            Right $! fromIntegral a +
+                                     fromIntegral b /
+                                     fromIntegral (10^denominator rest)
   where
     errMsg = reportErr recName str
-    assertion rest = case expectedDigitsAfterComma of
+    assertion rest = fromMaybe id (assert $ d == BS.length rest)
+{- case expectedDigitsAfterComma of
                        Just d  -> assert $ d == BS.length rest
-                       Nothing -> id -- check nothing...
-    denominator rest = case expectedDigitsAfterComma of
+                       Nothing -> id -- check nothing... -}
+    denominator rest = fromMaybe (BS.length rest) expectedDigitsAfterComma
+{-                       case expectedDigitsAfterComma of
                          Just d  -> d -- optimized away...
                          Nothing -> BS.length rest -- compute hard way
+ -}
 
 {-# INLINE parseFloat3 #-}
 -- | Fast parsing of conventional ROSETTA floats with 3 digits after the dot.
@@ -114,5 +121,5 @@ getCodec fname = if ".gz" `isSuffixOf` fname
 
 -- | Writes a file, possibly compressed, if so indicated by suffix.
 writeFile :: String -> BS.ByteString -> IO ()
-writeFile fname content = BS.writeFile fname $ snd (getCodec fname) $ content
+writeFile fname content = BS.writeFile fname $ snd (getCodec fname) content
 

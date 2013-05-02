@@ -46,10 +46,10 @@ parseRDCRestraint lineNo line = do when (length ws /= 6) $ Left $ BS.concat ["Ex
                                    resi1 <- parseInt   (withLineNo "left residue number" )         resi1str
                                    resi2 <- parseInt   (withLineNo "right residue number")         resi2str
                                    val   <- parseFloat (withLineNo "RDC value"           ) Nothing val
-                                   return $! RDCR { at1      = AtomId "" at1 resi1
-                                                  , at2      = AtomId "" at2 resi2
-                                                  , rdcValue = val
-                                                  }
+                                   return RDCR { at1      = AtomId "" at1 resi1
+                                               , at2      = AtomId "" at2 resi2
+                                               , rdcValue = val
+                                               }
   where
     [lbl, resi1str, at1, resi2str, at2, val] = ws
     withLineNo bs = BS.concat [bs, "in line #", bshow lineNo]
@@ -64,10 +64,10 @@ parseRDCRestraints input = result ++ lenErr
   where
     lenErr = case parseInt "number of records" $ lines !! 3 of
                Left  msg            -> [Left msg]
-               Right expectedLength -> if lenResult /= expectedLength
-                                         then [Left $ BS.concat [ "Found ",                     bshow lenResult
-                                                                , " restraints, but expected ", bshow expectedLength ]]
-                                         else []
+               Right expectedLength ->
+                   [Left $ BS.concat [ "Found ",                     bshow lenResult
+                                     , " restraints, but expected ", bshow expectedLength ]
+                     | lenResult /= expectedLength]
     restraintLines   = drop 4 lines
     lines            = BS.lines input
     lenResult        = length result
@@ -88,8 +88,7 @@ parseRDCRestraintsFile fname = do rdcEvts <- parseRDCRestraints `fmap` BS.readFi
 
 -- | Shows Kernel Density Estimation of a distribution.
 -- May be used to write it to GNUPlot .dat file.
-showKDE = foldr ($) ""                                  .
-          map mkRow                                     .
+showKDE = foldr mkRow ""                                .
           uncurry zip                                   .
           (VG.toList *** VG.toList)                     .
           Statistics.Sample.KernelDensity.kde kdePoints .
@@ -97,6 +96,7 @@ showKDE = foldr ($) ""                                  .
           V.map rdcValue                                .
           unRDCSet
   where
+    mkRow ::  (Show a, Show a1) => (a, a1) -> ShowS
     mkRow (x, y) = shows x . (' ':) . shows y . ('\n':)
 
 -- | Number of points in Kernel Density Estimation of RDC distribution.
@@ -132,13 +132,17 @@ instance Show RDCParams where
 -- | Computes descriptive parameters of RDC distribution.
 -- For now doesn't distinguish atom types.
 rdcParameters :: RDCSet -> RDCParams
-rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode d_a2 r2 aSum rdc_mode rdc_min rdc_max
+rdcParameters rdcSet = RDCParams d_a      d_r     r
+                                 rdc_min  rdc_max rdc_mode
+                                 d_a2     r2      aSum
+                                 rdc_mode rdc_min rdc_max
   where
     -- Computing 5 minimal and 5 maximal elements
     aSum = rdc_min + rdc_max + rdc_mode
     aList :: [Double]
     aList = sort $ map rdcValue $ V.toList $ unRDCSet rdcSet
-    (kdeMesh, kdeValues) = Statistics.Sample.KernelDensity.kde kdePoints $ VG.convert $ V.map rdcValue $ unRDCSet rdcSet 
+    (kdeMesh, kdeValues) = Statistics.Sample.KernelDensity.kde kdePoints $
+                             VG.convert $ V.map rdcValue $ unRDCSet rdcSet 
     rdc_mode :: Double
     rdc_mode = kdeMesh VG.! VG.maxIndex kdeValues
     numExtremal = 5
@@ -153,7 +157,7 @@ rdcParameters rdcSet = RDCParams d_a d_r r rdc_min rdc_max rdc_mode d_a2 r2 aSum
     -- Computing D_a
     d_a  = (rdc_min + rdc_mode)/(-2)/rdc_max
     d_a2 = rdc_max/2.0 
-    d_r  = (rdc_min - rdc_mode)/(-3) / rdc_max
+    d_r  = (rdc_min - rdc_mode)/(-3)/rdc_max
     r    = d_r/d_a
     r2   = (rdc_min - rdc_mode)/(rdc_min + rdc_mode)/2
 

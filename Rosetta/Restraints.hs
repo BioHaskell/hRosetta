@@ -95,9 +95,9 @@ parseFunc lineNo (funcs:spec) | funcs == "BOUNDED"  =
                                   do when (length spec <= 3) $ Left $ "Not enough arguments to BOUNDED in line " `BS.append` bshow lineNo
                                      [hi, lo, stdev] <- mapM (parseFloat' lineNo . (spec !!))
                                                              [0..2]
-                                     return $! RBounded { bLoBound = lo
-                                                        , bHiBound = hi
-                                                        , bStDev   = stdev }
+                                     return RBounded { bLoBound = lo
+                                                     , bHiBound = hi
+                                                     , bStDev   = stdev }
 parseFunc lineNo (funcs:spec)                       = 
                                      Left $ "Unknown function name " `BS.append` funcs
 
