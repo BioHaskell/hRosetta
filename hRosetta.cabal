@@ -1,5 +1,5 @@
 name:                hRosetta
-version:             0.5.4
+version:             0.5.5
 stability:           beta
 homepage:            https://github.com/mgajda/hRosetta
 package-url:         http://hackage.haskell.org/package/hRosetta

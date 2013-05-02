@@ -109,25 +109,30 @@ parseFloat' lineNo floatStr = parseFloat recName Nothing floatStr
     recName = BS.concat ["float ", BS.pack $ show floatStr, " in line ", BS.pack $ show lineNo]
 
 -- | Parse an distance restraint (AtomPair)
-parsePair lineNo ws = do when (len <= 8) $ Left $ BS.concat [ "Too few (", bshow len
+-- "AtomPair  CA 43A CA 516B  HARMONIC 12 0.2"
+-- "AtomPair    CB     6   1HA    33 BOUNDED 1.500 5.650 0.300"
+parsePair lineNo ws = do when (len <= 7) $ Left $ BS.concat [ "Too few (", bshow len
                                                             , ") words in AtomPair line "
                                                             , bshow lineNo ]
-                         [at1, at2] <- mapM (mkAtId3 lineNo) [at1s, at2s]
+                         [at1, at2] <- mapM (mkAtId2 lineNo) [at1s, at2s]
                          func <- parseFunc lineNo funcs
                          Right $ DistR at1 at2 func
   where
     len = length ws
-    [at1s, at2s, funcs] = splitsAt [3, 6] ws
+    [at1s, at2s, funcs] = splitsAt [2, 4] ws
 
 -- | Make an AtId object out of three entries in a line (with residue name.)
-mkAtId3 lineNo [residStr, resname, atName] = do resid <- parseInt ("atom id string in line " `BS.append` bshow lineNo) residStr
+mkAtId3 lineNo [residStr, resname, atName] = do resid <- parseInt ("atom id string in line "
+                                                                     `BS.append` bshow lineNo)
+                                                                  residStr
                                                 return AtomId { resName = resname
                                                               , atName  = atName
                                                               , resId   = resid
                                                               }
 
 -- | Make an AtId object out of two entries in a line (without residue name.)
-mkAtId2 lineNo [atName, resnum] = mkAtId3 [resnum, "", atName]
+-- TODO: handle chain name!!! 123 -> 123A
+mkAtId2 lineNo [atName, resnum] = mkAtId3 lineNo [resnum, "", atName]
 
 -- | Parse dihedral restraint (not yet implemented.)
 parseDihe lineNo ws = Left $ "Dihedral restraints are not yet implemented in line " `BS.append` bshow lineNo
