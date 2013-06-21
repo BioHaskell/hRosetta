@@ -68,7 +68,7 @@ parseFloat recName expectedDigitsAfterComma str =
     denominator rest = --fromMaybe (BS.length rest) id expectedDigitsAfterComma
                        case expectedDigitsAfterComma of
                          Just d  -> d -- optimized away...
-                         Nothing -> BS.length rest -- compute hard way
+                         Nothing -> BS.length rest - 1 -- compute hard way, subtract 1 for comma
 
 {-# INLINE parseFloat3 #-}
 -- | Fast parsing of conventional ROSETTA floats with 3 digits after the dot.
