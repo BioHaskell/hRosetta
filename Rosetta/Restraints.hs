@@ -111,9 +111,9 @@ parseFloat' lineNo floatStr = parseFloat recName Nothing floatStr
 -- | Parse an distance restraint (AtomPair)
 -- "AtomPair  CA 43A CA 516B  HARMONIC 12 0.2"
 -- "AtomPair    CB     6   1HA    33 BOUNDED 1.500 5.650 0.300"
-parsePair lineNo ws = do when (len <= 7) $ Left $ BS.concat [ "Too few (", bshow len
-                                                            , ") words in AtomPair line "
-                                                            , bshow lineNo ]
+parsePair lineNo ws = do when (len < 7) $ Left $ BS.concat [ "Too few (", bshow len
+                                                           , ") words in AtomPair line "
+                                                           , bshow lineNo ]
                          [at1, at2] <- mapM (mkAtId2 lineNo) [at1s, at2s]
                          func <- parseFunc lineNo funcs
                          Right $ DistR at1 at2 func
@@ -135,7 +135,8 @@ mkAtId3 lineNo [residStr, resname, atName] = do resid <- parseInt ("atom id stri
 mkAtId2 lineNo [atName, resnum] = mkAtId3 lineNo [resnum, "", atName]
 
 -- | Parse dihedral restraint (not yet implemented.)
-parseDihe lineNo ws = Left $ "Dihedral restraints are not yet implemented in line " `BS.append` bshow lineNo
+parseDihe lineNo ws = Left $ "Dihedral restraints are not yet implemented in line " `BS.append`
+                             bshow lineNo
 
 -- | Parse restraint line with a given line number.
 --   Returns either restraint object, or an error message.
@@ -159,15 +160,17 @@ parseRestraints input = (restraints, errs)
 
 -- | Open a file with a given name, and yield tuple with list of restraints,
 --   and error messages.
-parseRestraintsFile fname = parseRestraints `fmap` Rosetta.Util.readFile fname
+parseRestraintsFile fname = parseRestraints `fmap`
+                              Rosetta.Util.readFile fname
 
 -- | Read restraints list from a given file, print out all error messages to stderr,
 --   and yield list of restraints.
 processRestraintsFile fname = do (restraints, errors) <- parseRestraintsFile fname
-                                 forM_ errors $ \msg -> hPutStrLn stderr $ concat [ "ERROR parsing restraints file "
-                                                                                  , fname
-                                                                                  , ": "
-                                                                                  , BS.unpack msg                    ]
+                                 forM_ errors $ \msg -> hPutStrLn stderr $
+                                                          concat [ "ERROR parsing restraints file "
+                                                                 , fname
+                                                                 , ": "
+                                                                 , BS.unpack msg                    ]
                                  return restraints
 
 

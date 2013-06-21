@@ -36,9 +36,9 @@ rnfListDublets []          = ()
 rnfListDublets ((a, b):ls) = a `seq` b `seq` rnfListDublets ls 
 
 -- | Normal form of spine of a list.
-rnfList = foldr seq () -- or foldr'
---rnfList []     = ()
---rnfList (a:ls) = a `seq` rnfList ls
+--rnfList = foldr seq () -- or foldr'
+rnfList []     = ()
+rnfList (a:ls) = a `seq` rnfList ls
 
 {-# INLINE parseFloat #-} 
 -- | Fast parsing routine for floating point numbers with given number digits after the dot.
