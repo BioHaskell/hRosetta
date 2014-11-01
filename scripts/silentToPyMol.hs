@@ -6,7 +6,6 @@ import System.Environment
 import System.Console.GetOpt
 import System.IO
 import System.FilePath((<.>))
-import Control.Monad.Instances
 import Control.Monad(when, forM_)
 import Data.Either(partitionEithers)
 import qualified Data.ByteString.Char8 as BS

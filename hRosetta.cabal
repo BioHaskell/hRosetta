@@ -1,5 +1,5 @@
 name:                hRosetta
-version:             0.5.6
+version:             0.5.7
 stability:           beta
 homepage:            https://github.com/mgajda/hRosetta
 package-url:         http://hackage.haskell.org/package/hRosetta
@@ -10,7 +10,7 @@ license:             BSD3
 license-file:        LICENSE
 
 author:              Michal J. Gajda
-copyright:           Copyright by Michal J. Gajda '2013
+copyright:           Copyright by Michal J. Gajda '2013-'2014
 maintainer:          mjgajda@googlemail.com
 bug-reports:         mailto:mjgajda@googlemail.com
 
@@ -25,7 +25,7 @@ source-repository head
 
 Library
   ghc-options:      -fspec-constr-count=4 -O3
-  build-depends:    base>=4.0, base <4.7, bytestring, vector, deepseq >= 1.3.0.0, zlib >= 0.5.3, statistics
+  build-depends:    base>=4.0, base <4.9, bytestring, vector, deepseq >= 1.3.0.0, zlib >= 0.5.3, statistics
   exposed-modules:  Rosetta.SS, Rosetta.PyMol, Rosetta.Restraints, Rosetta.Fragments, Rosetta.Silent, Rosetta.Util, Rosetta.RDC
   exposed:          True
 
@@ -33,59 +33,59 @@ Executable silentToPymol
   main-is:          silentToPyMol.hs
   hs-source-dirs:   scripts
   ghc-options:      -fspec-constr-count=4 -O3
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, filepath
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring, filepath
 
 Executable parseRestraints
   main-is:          parseRestraints.hs
   hs-source-dirs:   scripts
   ghc-options:      -fspec-constr-count=4 -O3
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring
 
 Executable selectBest
   main-is:          selectBest.hs
   hs-source-dirs:   scripts
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring
 
 Test-suite test_Fragments
   main-is:          test_Fragments.hs
   hs-source-dirs:   tests
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, vector
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring, vector
 
 Test-suite test_Restraints
   main-is:          test_Restraints.hs
   hs-source-dirs:   tests
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, QuickCheck
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring, QuickCheck
  
 Test-suite test_RDCRestraints
   main-is:          test_RDCRestraints.hs
   hs-source-dirs:   tests
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, QuickCheck, vector, filepath
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring, QuickCheck, vector, filepath
  
 Test-suite test_Silent
   main-is:          test_Silent.hs
   hs-source-dirs:   tests
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring
 
 Test-suite test_Silent2
   main-is:          test_Silent2.hs
   hs-source-dirs:   tests
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring
 
 Test-suite test_Util
   main-is:          test_Util.hs
   hs-source-dirs:   tests .
   Type:             exitcode-stdio-1.0
   ghc-options:      -fspec-constr-count=4 -O3 
-  Build-depends:    base>=4.0, base <4.7, hRosetta, bytestring, QuickCheck, zlib >= 0.5.3
+  Build-depends:    base>=4.0, base <4.8, hRosetta, bytestring, QuickCheck, zlib >= 0.5.3
 

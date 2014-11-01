@@ -5,12 +5,12 @@ import System.IO
 import System.Environment
 import System.Exit(exitFailure)
 import qualified Data.ByteString.Char8 as BS
-import Data.List(minimumBy)
 import Control.Monad(forM_, when)
 
 import Rosetta.Silent
 
-main' n silentInputFilename silentOutputFilename = do
+mainWithParams ::  Int -> FilePath -> FilePath -> IO ()
+mainWithParams n silentInputFilename silentOutputFilename = do
           mdls <- processSilentFile silentInputFilename
           let bestMdls = take n $ sortModelsByScore mdls
           forM_ bestMdls $ \bestMdl ->
@@ -18,12 +18,13 @@ main' n silentInputFilename silentOutputFilename = do
           writeSilentFile silentOutputFilename bestMdls
 
 --   TODO: optional trailing arguments - extract only given decoys
+main :: IO ()
 main = do args <- getArgs 
-          when (length args /= 3) $ do hPutStrLn stderr $ "Usage: selectBest <N> <input.out> <NBestDecoys.out>"
+          when (length args /= 3) $ do hPutStrLn stderr "Usage: selectBest <N> <input.out> <NBestDecoys.out>"
                                        exitFailure
           let [number, silentInputFilename, silentOutputFilename] = args
           let ((n :: Int, []):_) = reads number
-          main' n silentInputFilename silentOutputFilename
+          mainWithParams n silentInputFilename silentOutputFilename
 
 
 

@@ -14,6 +14,7 @@ module Rosetta.Util( splitsAt
 
 import           Prelude hiding (readFile, writeFile)
 import           Data.List(isSuffixOf)
+import           Data.Foldable(foldr')
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Codec.Compression.GZip     as GZip
@@ -65,10 +66,8 @@ parseFloat recName expectedDigitsAfterComma str =
                        Nothing -> id -- check nothing... -}
     -- | Number of digits in the denominator.
     denominator :: BS.ByteString -> Int
-    denominator rest = --fromMaybe (BS.length rest) id expectedDigitsAfterComma
-                       case expectedDigitsAfterComma of
-                         Just d  -> d -- optimized away...
-                         Nothing -> BS.length rest - 1 -- compute hard way, subtract 1 for comma
+    denominator rest = fromMaybe (BS.length rest - 1) -- compute hard way, subtract 1 for comma
+                                 expectedDigitsAfterComma
 
 {-# INLINE parseFloat3 #-}
 -- | Fast parsing of conventional ROSETTA floats with 3 digits after the dot.

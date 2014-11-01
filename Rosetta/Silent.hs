@@ -24,7 +24,6 @@ module Rosetta.Silent( SilentEvent    (..)
 
 import           Prelude hiding (readFile) 
 import           System.IO(stderr, withFile, Handle, IOMode(WriteMode))
-import           Control.Monad.Instances
 import           Control.Monad(when, forM_)
 import           Control.Exception(assert)
 import           Data.List(unfoldr, minimumBy, sortBy)

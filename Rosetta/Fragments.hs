@@ -13,7 +13,6 @@ import           Data.Typeable
 import           Data.Data
 import           System.IO              (hPrint, stderr)
 import           Control.Monad          (when, forM_)
-import           Control.Monad.Instances()
 import           Control.DeepSeq        (NFData(..))
 import           Control.Exception      (assert)
 import           Data.Either            (partitionEithers)
@@ -163,7 +162,7 @@ parseFragments input = (errs, vectorizeFragmentLists $ groupFragments frags [])
   where
     (errs, frags) = partitionEithers . map finalize $ readLine' (zip [1..] $ BS.lines input) (TFrag (-1) (-1) [])
     finalize :: Either BS.ByteString TFrag -> Either BS.ByteString RFrag
-    finalize = either (Left . id) (Right . finalizeTFrag)
+    finalize = fmap finalizeTFrag
 
 -- | Converts temporary TFrag object to a final `RFrag` object.
 finalizeTFrag (TFrag start end res) = RFrag start end (V.fromList res)

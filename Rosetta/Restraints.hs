@@ -17,7 +17,6 @@ import Data.Typeable
 import Control.DeepSeq
 import Control.Monad( when
                     , forM_ )
-import Control.Monad.Instances()
 
 import Rosetta.Util
 import qualified Rosetta.Util
